@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build avec SDL2",
+      "type": "shell",
+      "command": "C:/MinGW/bin/gcc.exe",
+      "args": [
+        "-o",
+        "main.exe",
+        "main.c",
+        "-IC:/SDL2-2.30.8/i686-w64-mingw32/include/SDL2",
+        "-LC:/SDL2-2.30.8/i686-w64-mingw32/lib",
+        "-lmingw32",
+        "-lSDL2main",
+        "-lSDL2",
+        "-mwindows"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gcc"],
+      "detail": "Compile le programme avec SDL2"
+    }
+  ]
+}
