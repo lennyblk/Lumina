@@ -25,7 +25,6 @@ GameConfig loadConfig(const char *filePath) {
         exit(1);
     }
 
-    // Lire le fichier JSON
     fseek(file, 0, SEEK_END);
     long fileSize = ftell(file);
     rewind(file);
@@ -43,7 +42,6 @@ GameConfig loadConfig(const char *filePath) {
         exit(1);
     }
 
-    // Extraire les valeurs du JSON
     config.volume = cJSON_GetObjectItem(json, "volume")->valueint;
     config.width = cJSON_GetObjectItem(json, "resolution_width")->valueint;
     config.height = cJSON_GetObjectItem(json, "resolution_height")->valueint;
@@ -70,6 +68,16 @@ void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
     }
 
     fclose(file);
+}
+
+int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
+    int tileX = x / TILE_SIZE;
+    int tileY = y / TILE_SIZE;
+
+    if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
+        return level[tileY][tileX] == 7;
+    }
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -102,6 +110,8 @@ int main(int argc, char *argv[]) {
     int velocityY = 0;
     int canJump = 2;
 
+    int keys[SDL_NUM_SCANCODES] = {0};
+
     SDL_Event event;
     int running = 1;
     while (running) {
@@ -109,21 +119,33 @@ int main(int argc, char *argv[]) {
             if (event.type == SDL_QUIT) {
                 running = 0;
             } else if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == config.jumpKey && canJump > 0) {
-                    velocityY = -15;
-                    canJump--;
-                }
-                if (event.key.keysym.sym == config.moveLeftKey) {
-                    playerX -= 5;
-                }
-                if (event.key.keysym.sym == config.moveRightKey) {
-                    playerX += 5;
-                }
+                keys[event.key.keysym.scancode] = 1;
+            } else if (event.type == SDL_KEYUP) {
+                keys[event.key.keysym.scancode] = 0;
             }
+        }
+
+        if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
+            playerX -= 5;
+        }
+        if (keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
+            playerX += 5;
+        }
+        if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
+            velocityY = -15;
+            canJump--;
         }
 
         velocityY += 1;
         playerY += velocityY;
+
+        if (velocityY > 0) {
+            while (checkCollision(playerX, playerY + TILE_SIZE, level)) {
+                playerY--;
+                velocityY = 0;
+                canJump = 2;
+            }
+        }
 
         if (playerY >= config.height - TILE_SIZE) {
             playerY = config.height - TILE_SIZE;
