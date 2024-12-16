@@ -3,9 +3,10 @@
 #include <SDL.h>
 #include "cJSON.h"
 
-#define TILE_SIZE 50
-#define LEVEL_WIDTH 16
-#define LEVEL_HEIGHT 12
+// Configuration de la taille des tiles
+#define TILE_SIZE 16
+#define LEVEL_WIDTH 32   // Largeur de la matrice
+#define LEVEL_HEIGHT 20  // Hauteur de la matrice
 
 typedef struct {
     int volume;
@@ -17,6 +18,7 @@ typedef struct {
     SDL_Keycode moveRightKey;
 } GameConfig;
 
+// Charger le fichier de configuration JSON
 GameConfig loadConfig(const char *filePath) {
     GameConfig config;
     FILE *file = fopen(filePath, "r");
@@ -54,6 +56,7 @@ GameConfig loadConfig(const char *filePath) {
     return config;
 }
 
+// Charger un niveau à partir d'un fichier texte
 void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
     FILE *file = fopen(filePath, "r");
     if (file == NULL) {
@@ -70,12 +73,25 @@ void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
     fclose(file);
 }
 
-int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
+// Charger une texture depuis une image
+SDL_Texture *loadTexture(const char *filePath, SDL_Renderer *renderer) {
+    SDL_Surface *surface = SDL_LoadBMP(filePath);
+    if (!surface) {
+        printf("Erreur lors du chargement de l'image %s : %s\n", filePath, SDL_GetError());
+        return NULL;
+    }
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_FreeSurface(surface); // Libérer la surface après création de la texture
+    return texture;
+}
+
+// Vérifier la collision avec un type de bloc
+int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
     int tileX = x / TILE_SIZE;
     int tileY = y / TILE_SIZE;
 
     if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
-        return level[tileY][tileX] == 7;
+        return level[tileY][tileX] == tileType;
     }
     return 0;
 }
@@ -105,16 +121,27 @@ int main(int argc, char *argv[]) {
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
+    // Charger l'image lumine.bmp pour le personnage
+    SDL_Texture *playerTexture = loadTexture("lumina.bmp", renderer);
+    if (!playerTexture) {
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+    int offsetY = (config.height - (LEVEL_HEIGHT * TILE_SIZE)) / 2;
+
     int playerX = 0;
-    int playerY = config.height - TILE_SIZE;
-    int velocityY = 0;
+    int playerY = offsetY + (LEVEL_HEIGHT - 1) * TILE_SIZE;    int velocityY = 0;
     int canJump = 2;
+    int facingRight = 1; // 1 = droite, 0 = gauche
 
     int keys[SDL_NUM_SCANCODES] = {0};
 
     SDL_Event event;
     int running = 1;
     while (running) {
+
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = 0;
@@ -126,13 +153,15 @@ int main(int argc, char *argv[]) {
         }
 
         if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
-            playerX -= 5;
+            playerX -= TILE_SIZE / 4;
+            facingRight = 0; // Tourner à gauche
         }
         if (keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
-            playerX += 5;
+            playerX += TILE_SIZE / 4;
+            facingRight = 1; // Tourner à droite
         }
         if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
-            velocityY = -15;
+            velocityY = -TILE_SIZE;
             canJump--;
         }
 
@@ -140,11 +169,24 @@ int main(int argc, char *argv[]) {
         playerY += velocityY;
 
         if (velocityY > 0) {
-            while (checkCollision(playerX, playerY + TILE_SIZE, level)) {
+            while (checkCollision(playerX, playerY + TILE_SIZE, level, 7)) {
                 playerY--;
                 velocityY = 0;
                 canJump = 2;
             }
+        }
+
+        if (checkCollision(playerX, playerY, level, 8)) {
+            // Si collision avec des pics, réinitialiser la position
+            playerX = 0;
+            playerY = config.height - TILE_SIZE;
+            velocityY = 0;
+        }
+
+        if (checkCollision(playerX, playerY, level, 9)) {
+            // Si collision avec la fin de niveau, arrêter le jeu
+            printf("Niveau terminé !\n");
+            running = 0;
         }
 
         if (playerY >= config.height - TILE_SIZE) {
@@ -156,25 +198,36 @@ int main(int argc, char *argv[]) {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        // Dessiner les blocs
         for (int y = 0; y < LEVEL_HEIGHT; y++) {
             for (int x = 0; x < LEVEL_WIDTH; x++) {
+                // Appliquer l'offsetY pour centrer verticalement la matrice
+                SDL_Rect rect = {x * TILE_SIZE, (y * TILE_SIZE) + offsetY, TILE_SIZE, TILE_SIZE};
+                
                 if (level[y][x] == 7) {
-                    SDL_Rect rect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
-                    SDL_RenderFillRect(renderer, &rect);
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // Blanc pour les blocs
+                } else if (level[y][x] == 8) {
+                    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Rouge pour les pics
+                } else if (level[y][x] == 9) {
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Jaune pour la fin du niveau
+                } else {
+                    continue;
                 }
+                SDL_RenderFillRect(renderer, &rect);
             }
         }
 
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        // Dessiner le joueur avec la texture
         SDL_Rect playerRect = {playerX, playerY, TILE_SIZE, TILE_SIZE};
-        SDL_RenderFillRect(renderer, &playerRect);
+        SDL_RenderCopyEx(renderer, playerTexture, NULL, &playerRect, 0, NULL,
+                         facingRight ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
 
         SDL_RenderPresent(renderer);
 
         SDL_Delay(16);
     }
 
+    SDL_DestroyTexture(playerTexture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
