@@ -3,10 +3,9 @@
 #include <SDL.h>
 #include "cJSON.h"
 
-// Configuration de la taille des tiles
 #define TILE_SIZE 16
-#define LEVEL_WIDTH 80   // Largeur de la matrice (80 tiles de large)
-#define LEVEL_HEIGHT 50  // Hauteur de la matrice (50 tiles de hauteur)
+#define LEVEL_WIDTH 80   
+#define LEVEL_HEIGHT 50  
 
 typedef struct {
     int volume;
@@ -18,7 +17,6 @@ typedef struct {
     SDL_Keycode moveRightKey;
 } GameConfig;
 
-// Charger le fichier de configuration JSON
 GameConfig loadConfig(const char *filePath) {
     GameConfig config;
     FILE *file = fopen(filePath, "r");
@@ -56,7 +54,6 @@ GameConfig loadConfig(const char *filePath) {
     return config;
 }
 
-// Charger un niveau à partir d'un fichier texte
 void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
     FILE *file = fopen(filePath, "r");
     if (file == NULL) {
@@ -73,7 +70,6 @@ void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
     fclose(file);
 }
 
-// Charger une texture depuis une image
 SDL_Texture *loadTexture(const char *filePath, SDL_Renderer *renderer) {
     SDL_Surface *surface = SDL_LoadBMP(filePath);
     if (!surface) {
@@ -81,11 +77,10 @@ SDL_Texture *loadTexture(const char *filePath, SDL_Renderer *renderer) {
         return NULL;
     }
     SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-    SDL_FreeSurface(surface); // Libérer la surface après création de la texture
+    SDL_FreeSurface(surface); 
     return texture;
 }
 
-// Vérifier la collision avec un type de bloc
 int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
     int tileX = x / TILE_SIZE;
     int tileY = y / TILE_SIZE;
@@ -96,22 +91,20 @@ int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileT
     return 0;
 }
 
-// Fonction de vérification de collision au-dessus du personnage sur toute sa largeur
 int checkAboveCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
-    int tileXStart = x / TILE_SIZE; // Position X de départ du personnage
-    int tileXEnd = (x + TILE_SIZE - 1) / TILE_SIZE; // Position X de fin du personnage
+    int tileXStart = x / TILE_SIZE; 
+    int tileXEnd = (x + TILE_SIZE - 1) / TILE_SIZE; 
 
-    int tileY = (y - TILE_SIZE) / TILE_SIZE; // Vérifier la ligne juste au-dessus du personnage
+    int tileY = (y - TILE_SIZE) / TILE_SIZE; 
 
-    // Vérifier sur toute la largeur du personnage
     for (int tileX = tileXStart; tileX <= tileXEnd; tileX++) {
         if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
             if (level[tileY][tileX] == tileType) {
-                return 1; // Collision avec un bloc au-dessus
+                return 1; 
             }
         }
     }
-    return 0; // Pas de collision au-dessus
+    return 0; 
 }
 
 int main(int argc, char *argv[]) {
@@ -139,7 +132,6 @@ int main(int argc, char *argv[]) {
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    // Charger l'image lumine.bmp pour le personnage
     SDL_Texture *playerTexture = loadTexture("lumina.bmp", renderer);
     if (!playerTexture) {
         SDL_DestroyRenderer(renderer);
@@ -152,7 +144,7 @@ int main(int argc, char *argv[]) {
     int playerY = config.height - TILE_SIZE;
     int velocityY = 0;
     int canJump = 2;
-    int facingRight = 1; // 1 = droite, 0 = gauche
+    int facingRight = 1;
 
     int keys[SDL_NUM_SCANCODES] = {0};
 
@@ -171,16 +163,16 @@ int main(int argc, char *argv[]) {
 
         if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
             playerX -= TILE_SIZE / 4;
-            facingRight = 1; // Tourner à gauche
+            facingRight = 1;
         }
         if (keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
             playerX += TILE_SIZE / 4;
-            facingRight = 0; // Tourner à droite
+            facingRight = 0;
         }
 
         if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
-            // Vérifier qu'il n'y a pas de blocs juste au-dessus avant de sauter
-            if (!checkAboveCollision(playerX, playerY, level, 7)) {  // Par exemple, les blocs solides ont l'ID 7
+            
+            if (!checkAboveCollision(playerX, playerY, level, 7)) { 
                 velocityY = -TILE_SIZE;
                 canJump--;
             }
@@ -197,21 +189,18 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Vérifier la collision avec un bloc rouge sur tous les côtés du joueur
         if (checkCollision(playerX, playerY, level, 8) || 
-            checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || // Côté droit
-            checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || // Côté bas
-            checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  // Coin bas droit
-            // Si collision avec un bloc rouge, réinitialiser la position
+            checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || 
+            checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || 
+            checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  
             playerX = 0;
-            playerY = config.height - TILE_SIZE;  // Position de départ
+            playerY = config.height - TILE_SIZE;  
             velocityY = 0;
         }
 
 
 
         if (checkCollision(playerX, playerY, level, 9)) {
-            // Si collision avec la fin de niveau, arrêter le jeu
             printf("Niveau terminé !\n");
             running = 0;
         }
@@ -225,7 +214,6 @@ int main(int argc, char *argv[]) {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        // Dessiner les blocs
         for (int y = 0; y < LEVEL_HEIGHT; y++) {
             for (int x = 0; x < LEVEL_WIDTH; x++) {
                 SDL_Rect rect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
@@ -242,7 +230,6 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Dessiner le joueur avec la texture
         SDL_Rect playerRect = {playerX, playerY, TILE_SIZE, TILE_SIZE};
         SDL_RenderCopyEx(renderer, playerTexture, NULL, &playerRect, 0, NULL,
                          facingRight ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
