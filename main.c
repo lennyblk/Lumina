@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <SDL.h>
 #include "cJSON.h"
+#include <SDL_image.h>
 
 // Configuration de la taille des tiles
 #define TILE_SIZE 16
@@ -23,7 +24,7 @@ GameConfig loadConfig(const char *filePath) {
     GameConfig config;
     FILE *file = fopen(filePath, "r");
     if (file == NULL) {
-        perror("Erreur lors de l'ouverture du fichier de configuration");
+        perror("Erreur lors de l'ouverture du jeu");
         exit(1);
     }
 
@@ -45,8 +46,6 @@ GameConfig loadConfig(const char *filePath) {
     }
 
     config.volume = cJSON_GetObjectItem(json, "volume")->valueint;
-    config.width = cJSON_GetObjectItem(json, "resolution_width")->valueint;
-    config.height = cJSON_GetObjectItem(json, "resolution_height")->valueint;
     config.jumpKey = cJSON_GetObjectItem(json, "jumpKey")->valueint;
     config.dashKey = cJSON_GetObjectItem(json, "dashKey")->valueint;
     config.moveLeftKey = cJSON_GetObjectItem(json, "moveLeftKey")->valueint;
@@ -60,7 +59,7 @@ GameConfig loadConfig(const char *filePath) {
 void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
     FILE *file = fopen(filePath, "r");
     if (file == NULL) {
-        perror("Erreur lors de l'ouverture du fichier de niveau");
+        printf("Erreur lors de l'ouverture du fichier de niveau");
         exit(1);
     }
 
@@ -110,7 +109,7 @@ int main(int argc, char *argv[]) {
     SDL_Window *window = SDL_CreateWindow(
         "Lumina",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        config.width, config.height, SDL_WINDOW_SHOWN
+        1280, 800, SDL_WINDOW_SHOWN
     );
 
     if (!window) {
@@ -132,7 +131,12 @@ int main(int argc, char *argv[]) {
     int offsetY = (config.height - (LEVEL_HEIGHT * TILE_SIZE)) / 2;
 
     int playerX = 0;
+<<<<<<< Updated upstream
     int playerY = offsetY + (LEVEL_HEIGHT - 1) * TILE_SIZE;    int velocityY = 0;
+=======
+    int playerY = 800 - TILE_SIZE;
+    int velocityY = 0;
+>>>>>>> Stashed changes
     int canJump = 2;
     int facingRight = 1; // 1 = droite, 0 = gauche
 
@@ -176,6 +180,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
+<<<<<<< Updated upstream
         if (checkCollision(playerX, playerY, level, 8)) {
             // Si collision avec des pics, réinitialiser la position
             playerX = 0;
@@ -191,6 +196,10 @@ int main(int argc, char *argv[]) {
 
         if (playerY >= config.height - TILE_SIZE) {
             playerY = config.height - TILE_SIZE;
+=======
+        if (playerY >= 800 - TILE_SIZE) {
+            playerY = 800 - TILE_SIZE;
+>>>>>>> Stashed changes
             velocityY = 0;
             canJump = 2;
         }
@@ -234,3 +243,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
