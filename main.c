@@ -2,12 +2,11 @@
 #include <stdlib.h>
 #include <SDL.h>
 #include "cJSON.h"
-#include <SDL_image.h>
 
 // Configuration de la taille des tiles
 #define TILE_SIZE 16
-#define LEVEL_WIDTH 32   // Largeur de la matrice
-#define LEVEL_HEIGHT 20  // Hauteur de la matrice
+#define LEVEL_WIDTH 80   // Largeur de la matrice (80 tiles de large)
+#define LEVEL_HEIGHT 50  // Hauteur de la matrice (50 tiles de hauteur)
 
 typedef struct {
     int volume;
@@ -24,7 +23,7 @@ GameConfig loadConfig(const char *filePath) {
     GameConfig config;
     FILE *file = fopen(filePath, "r");
     if (file == NULL) {
-        perror("Erreur lors de l'ouverture du jeu");
+        perror("Erreur lors de l'ouverture du fichier de configuration");
         exit(1);
     }
 
@@ -46,6 +45,8 @@ GameConfig loadConfig(const char *filePath) {
     }
 
     config.volume = cJSON_GetObjectItem(json, "volume")->valueint;
+    config.width = cJSON_GetObjectItem(json, "resolution_width")->valueint;
+    config.height = cJSON_GetObjectItem(json, "resolution_height")->valueint;
     config.jumpKey = cJSON_GetObjectItem(json, "jumpKey")->valueint;
     config.dashKey = cJSON_GetObjectItem(json, "dashKey")->valueint;
     config.moveLeftKey = cJSON_GetObjectItem(json, "moveLeftKey")->valueint;
@@ -59,7 +60,7 @@ GameConfig loadConfig(const char *filePath) {
 void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
     FILE *file = fopen(filePath, "r");
     if (file == NULL) {
-        printf("Erreur lors de l'ouverture du fichier de niveau");
+        perror("Erreur lors de l'ouverture du fichier de niveau");
         exit(1);
     }
 
@@ -95,6 +96,24 @@ int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileT
     return 0;
 }
 
+// Fonction de vérification de collision au-dessus du personnage sur toute sa largeur
+int checkAboveCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
+    int tileXStart = x / TILE_SIZE; // Position X de départ du personnage
+    int tileXEnd = (x + TILE_SIZE - 1) / TILE_SIZE; // Position X de fin du personnage
+
+    int tileY = (y - TILE_SIZE) / TILE_SIZE; // Vérifier la ligne juste au-dessus du personnage
+
+    // Vérifier sur toute la largeur du personnage
+    for (int tileX = tileXStart; tileX <= tileXEnd; tileX++) {
+        if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
+            if (level[tileY][tileX] == tileType) {
+                return 1; // Collision avec un bloc au-dessus
+            }
+        }
+    }
+    return 0; // Pas de collision au-dessus
+}
+
 int main(int argc, char *argv[]) {
     GameConfig config = loadConfig("config.json");
 
@@ -109,7 +128,7 @@ int main(int argc, char *argv[]) {
     SDL_Window *window = SDL_CreateWindow(
         "Lumina",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        1280, 800, SDL_WINDOW_SHOWN
+        config.width, config.height, SDL_WINDOW_SHOWN
     );
 
     if (!window) {
@@ -128,15 +147,10 @@ int main(int argc, char *argv[]) {
         SDL_Quit();
         return 1;
     }
-    int offsetY = (config.height - (LEVEL_HEIGHT * TILE_SIZE)) / 2;
 
     int playerX = 0;
-<<<<<<< Updated upstream
-    int playerY = offsetY + (LEVEL_HEIGHT - 1) * TILE_SIZE;    int velocityY = 0;
-=======
-    int playerY = 800 - TILE_SIZE;
+    int playerY = config.height - TILE_SIZE;
     int velocityY = 0;
->>>>>>> Stashed changes
     int canJump = 2;
     int facingRight = 1; // 1 = droite, 0 = gauche
 
@@ -145,7 +159,6 @@ int main(int argc, char *argv[]) {
     SDL_Event event;
     int running = 1;
     while (running) {
-
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = 0;
@@ -158,15 +171,19 @@ int main(int argc, char *argv[]) {
 
         if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
             playerX -= TILE_SIZE / 4;
-            facingRight = 0; // Tourner à gauche
+            facingRight = 1; // Tourner à gauche
         }
         if (keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
             playerX += TILE_SIZE / 4;
-            facingRight = 1; // Tourner à droite
+            facingRight = 0; // Tourner à droite
         }
+
         if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
-            velocityY = -TILE_SIZE;
-            canJump--;
+            // Vérifier qu'il n'y a pas de blocs juste au-dessus avant de sauter
+            if (!checkAboveCollision(playerX, playerY, level, 7)) {  // Par exemple, les blocs solides ont l'ID 7
+                velocityY = -TILE_SIZE;
+                canJump--;
+            }
         }
 
         velocityY += 1;
@@ -180,13 +197,18 @@ int main(int argc, char *argv[]) {
             }
         }
 
-<<<<<<< Updated upstream
-        if (checkCollision(playerX, playerY, level, 8)) {
-            // Si collision avec des pics, réinitialiser la position
+        // Vérifier la collision avec un bloc rouge sur tous les côtés du joueur
+        if (checkCollision(playerX, playerY, level, 8) || 
+            checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || // Côté droit
+            checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || // Côté bas
+            checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  // Coin bas droit
+            // Si collision avec un bloc rouge, réinitialiser la position
             playerX = 0;
-            playerY = config.height - TILE_SIZE;
+            playerY = config.height - TILE_SIZE;  // Position de départ
             velocityY = 0;
         }
+
+
 
         if (checkCollision(playerX, playerY, level, 9)) {
             // Si collision avec la fin de niveau, arrêter le jeu
@@ -196,10 +218,6 @@ int main(int argc, char *argv[]) {
 
         if (playerY >= config.height - TILE_SIZE) {
             playerY = config.height - TILE_SIZE;
-=======
-        if (playerY >= 800 - TILE_SIZE) {
-            playerY = 800 - TILE_SIZE;
->>>>>>> Stashed changes
             velocityY = 0;
             canJump = 2;
         }
@@ -210,15 +228,13 @@ int main(int argc, char *argv[]) {
         // Dessiner les blocs
         for (int y = 0; y < LEVEL_HEIGHT; y++) {
             for (int x = 0; x < LEVEL_WIDTH; x++) {
-                // Appliquer l'offsetY pour centrer verticalement la matrice
-                SDL_Rect rect = {x * TILE_SIZE, (y * TILE_SIZE) + offsetY, TILE_SIZE, TILE_SIZE};
-                
+                SDL_Rect rect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
                 if (level[y][x] == 7) {
-                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // Blanc pour les blocs
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 } else if (level[y][x] == 8) {
-                    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Rouge pour les pics
+                    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
                 } else if (level[y][x] == 9) {
-                    SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255); // Jaune pour la fin du niveau
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
                 } else {
                     continue;
                 }
@@ -243,4 +259,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
