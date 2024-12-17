@@ -25,18 +25,16 @@ GameConfig loadConfig(const char *filePath) {
         exit(1);
     }
 
-    fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
-    rewind(file);
-
-    char *data = (char *)malloc(fileSize + 1);
-    fread(data, 1, fileSize, file);
-    data[fileSize] = '\0';
+    char buffer[1024] = {0};
+    
+    if (fread(buffer, 1, sizeof(buffer) - 1, file) == 0) {
+        perror("Erreur lors de la lecture du fichier");
+        fclose(file);
+        exit(1);
+    }
     fclose(file);
 
-    cJSON *json = cJSON_Parse(data);
-    free(data);
-
+    cJSON *json = cJSON_Parse(buffer);
     if (!json) {
         printf("Erreur de parsing JSON: %s\n", cJSON_GetErrorPtr());
         exit(1);
@@ -92,19 +90,13 @@ int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileT
 }
 
 int checkAboveCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
-    int tileXStart = x / TILE_SIZE; 
-    int tileXEnd = (x + TILE_SIZE - 1) / TILE_SIZE; 
+    int tileX = x / TILE_SIZE;
+    int tileY = (y - TILE_SIZE) / TILE_SIZE;
 
-    int tileY = (y - TILE_SIZE) / TILE_SIZE; 
-
-    for (int tileX = tileXStart; tileX <= tileXEnd; tileX++) {
-        if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
-            if (level[tileY][tileX] == tileType) {
-                return 1; 
-            }
-        }
+    if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
+        return level[tileY][tileX] == tileType;
     }
-    return 0; 
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -125,7 +117,7 @@ int main(int argc, char *argv[]) {
     );
 
     if (!window) {
-        printf("Erreur lors de la création de la fenêtre : %s\n", SDL_GetError());
+        printf("Erreur lors du lancement du jeu : %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
     }
@@ -196,16 +188,28 @@ int main(int argc, char *argv[]) {
             playerX = 0;
             playerY = config.height - TILE_SIZE;  
             velocityY = 0;
+            printf("GAME OVER !\n");
         }
 
 
 
         if (checkCollision(playerX, playerY, level, 9)) {
-            printf("Niveau terminé !\n");
+            printf("GAME !\n");
             running = 0;
         }
 
-        if (playerY >= config.height - TILE_SIZE) {
+        // pour pas que le joueur sorte de la map horizontalement
+        if (playerX < 0) {
+            playerX = 0;
+        } else if (playerX > config.width - TILE_SIZE) {
+            playerX = config.width - TILE_SIZE;
+        }
+
+        // pour pas que le joueur sorte de la map verticalement
+        if (playerY < 0) {
+            playerY = 0;
+            velocityY = 0;  
+        } else if (playerY >= config.height - TILE_SIZE) {
             playerY = config.height - TILE_SIZE;
             velocityY = 0;
             canJump = 2;
@@ -230,10 +234,18 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        SDL_Rect playerRect = {playerX, playerY, TILE_SIZE, TILE_SIZE};
-        SDL_RenderCopyEx(renderer, playerTexture, NULL, &playerRect, 0, NULL,
-                         facingRight ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
+    SDL_Rect playerRect = {
+            playerX,
+            playerY,
+            TILE_SIZE,
+            TILE_SIZE
+    };
 
+    if (facingRight) {
+        SDL_RenderCopyEx(renderer, playerTexture, NULL, &playerRect, 0, NULL, SDL_FLIP_NONE);
+    } else {
+        SDL_RenderCopyEx(renderer, playerTexture, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
+    }
         SDL_RenderPresent(renderer);
 
         SDL_Delay(16);
