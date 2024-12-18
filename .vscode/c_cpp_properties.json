@@ -4,7 +4,9 @@
       "name": "windows-gcc-x86",
       "includePath": [
         "${workspaceFolder}/**",
-        "C:/SDL2-2.30.8/i686-w64-mingw32/include/SDL2"
+        "C:/SDL2-2.30.8/i686-w64-mingw32/include/SDL2",
+        "C:/SDL2_image-2.6.3/i686-w64-mingw32/include/SDL2",
+        "C:/SDL2_ttf-2.20.2/i686-w64-mingw32/include/SDL2"
       ],
       "compilerPath": "C:/MinGW/bin/gcc.exe",
       "cStandard": "c11",

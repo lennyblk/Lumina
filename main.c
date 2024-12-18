@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <SDL.h>
 #include "cJSON.h"
+#include <SDL_image.h>
+#include <SDL_ttf.h>
 
 #define TILE_SIZE 16
 #define LEVEL_WIDTH 80   
@@ -16,6 +18,30 @@ typedef struct {
     SDL_Keycode moveLeftKey;
     SDL_Keycode moveRightKey;
 } GameConfig;
+
+typedef struct {
+    int saveX;
+    int saveY;
+} SaveConfig;
+
+typedef struct {
+    int x;
+    int y;
+    int hasCheckpoint;
+    int checkpointX;
+    int checkpointY;
+    int isCheckpointActive;
+} PlayerSpawn;
+
+typedef struct {
+    SDL_Texture* background1;
+    SDL_Texture* background2;
+    SDL_Texture* background3;
+    SDL_Texture* player;
+    SDL_Texture* ground;
+    SDL_Texture* levelText;
+    SDL_Texture* messageText;
+} GameTextures;
 
 GameConfig loadConfig(const char *filePath) {
     GameConfig config;
@@ -69,9 +95,9 @@ void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
 }
 
 SDL_Texture *loadTexture(const char *filePath, SDL_Renderer *renderer) {
-    SDL_Surface *surface = SDL_LoadBMP(filePath);
+    SDL_Surface *surface = IMG_Load(filePath);
     if (!surface) {
-        printf("Erreur lors du chargement de l'image %s : %s\n", filePath, SDL_GetError());
+        printf("Erreur lors du chargement de l'image %s : %s\n", filePath, IMG_GetError());
         return NULL;
     }
     SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -99,6 +125,27 @@ int checkAboveCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int 
     return 0;
 }
 
+SDL_Texture* createTextTexture(TTF_Font* font, const char* text, SDL_Color color, SDL_Renderer* renderer) {
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, text, color);
+    if (!textSurface) {
+        return NULL;
+    }
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    SDL_FreeSurface(textSurface);
+    return texture;
+}
+
+void renderText(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Color color, int x, int y) {
+    SDL_Texture* textTexture = createTextTexture(font, text, color, renderer);
+    if (textTexture) {
+        int textWidth, textHeight;
+        SDL_QueryTexture(textTexture, NULL, NULL, &textWidth, &textHeight);
+        SDL_Rect textRect = {x, y, textWidth, textHeight};
+        SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+        SDL_DestroyTexture(textTexture);
+    }
+}
+
 int main(int argc, char *argv[]) {
     GameConfig config = loadConfig("config.json");
 
@@ -107,6 +154,16 @@ int main(int argc, char *argv[]) {
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("Erreur lors de l'initialisation de SDL : %s\n", SDL_GetError());
+        return 1;
+    }
+
+    if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
+        printf("Erreur lors de l'initialisation de SDL_image : %s\n", IMG_GetError());
+        return 1;
+    }
+
+    if (TTF_Init() < 0) {
+        printf("Erreur lors de l'initialisation de SDL_ttf : %s\n", TTF_GetError());
         return 1;
     }
 
@@ -124,16 +181,49 @@ int main(int argc, char *argv[]) {
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    SDL_Texture *playerTexture = loadTexture("lumina.bmp", renderer);
-    if (!playerTexture) {
+    TTF_Font* font = TTF_OpenFont("oak_woods_v1.0/fonts/SuperPixel-m2L8j.ttf", 24);
+    if (!font) {
+        printf("Erreur lors du chargement de la police : %s\n", TTF_GetError());
+        return 1;
+    }
+
+    GameTextures textures;
+    
+    // Création du texte
+    SDL_Color textColor = {255, 255, 255, 255};
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, "First Level", textColor);
+    if (!textSurface) {
+        printf("Erreur lors de la création du texte : %s\n", TTF_GetError());
+        return 1;
+    }
+    textures.levelText = SDL_CreateTextureFromSurface(renderer, textSurface);
+    SDL_FreeSurface(textSurface);
+
+    textures.background1 = loadTexture("oak_woods_v1.0/background/background_layer_1.png", renderer);
+    textures.background2 = loadTexture("oak_woods_v1.0/background/background_layer_2.png", renderer);
+    textures.background3 = loadTexture("oak_woods_v1.0/background/background_layer_3.png", renderer);
+    textures.player = loadTexture("oak_woods_v1.0/character/malo.png", renderer);
+    textures.ground = loadTexture("oak_woods_v1.0/decorations/sol1.png", renderer);
+
+    if (!textures.background1 || !textures.background2 || !textures.background3 || 
+        !textures.player || !textures.ground || !textures.levelText) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
 
-    int playerX = 0;
-    int playerY = config.height - TILE_SIZE;
+    PlayerSpawn spawn = {
+        .x = 0,
+        .y = config.height - TILE_SIZE,
+        .hasCheckpoint = 0,
+        .checkpointX = 0,
+        .checkpointY = 0,
+        .isCheckpointActive = 0
+    };
+
+    int playerX = spawn.x;
+    int playerY = spawn.y;
     int velocityY = 0;
     int canJump = 2;
     int facingRight = 1;
@@ -142,6 +232,7 @@ int main(int argc, char *argv[]) {
 
     SDL_Event event;
     int running = 1;
+    
     while (running) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -163,9 +254,8 @@ int main(int argc, char *argv[]) {
         }
 
         if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
-            
             if (!checkAboveCollision(playerX, playerY, level, 7)) { 
-                velocityY = -TILE_SIZE;
+                velocityY = -TILE_SIZE / 1.2;
                 canJump--;
             }
         }
@@ -185,17 +275,35 @@ int main(int argc, char *argv[]) {
             checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || 
             checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || 
             checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  
-            playerX = 0;
-            playerY = config.height - TILE_SIZE;  
+            if (spawn.hasCheckpoint && spawn.isCheckpointActive) {
+                playerX = spawn.checkpointX;
+                playerY = spawn.checkpointY;
+            } else {
+                playerX = spawn.x;
+                playerY = spawn.y;
+            }
             velocityY = 0;
-            printf("GAME OVER !\n");
+            SDL_Color redColor = {255, 0, 0, 255};
+            renderText(renderer, font, "GAME OVER!", redColor, config.width/2 - 100, config.height/2);
         }
 
-
-
         if (checkCollision(playerX, playerY, level, 9)) {
-            printf("GAME !\n");
+            SDL_Color greenColor = {0, 255, 0, 255};
+            renderText(renderer, font, "YOU WIN!", greenColor, config.width/2 - 80, config.height/2);
+            SDL_RenderPresent(renderer);
+            SDL_Delay(2000);  // Affiche le message pendant 2 secondes
             running = 0;
+        }
+
+        if (checkCollision(playerX, playerY, level, 6)) {
+            spawn.checkpointX = playerX;
+            spawn.checkpointY = playerY;
+            spawn.hasCheckpoint = 1;
+            if (!spawn.isCheckpointActive) {
+                spawn.isCheckpointActive = 1;
+                SDL_Color blueColor = {0, 0, 255, 255};
+                renderText(renderer, font, "Checkpoint!", blueColor, config.width/2 - 90, config.height/2);
+            }
         }
 
         // pour pas que le joueur sorte de la map horizontalement
@@ -218,43 +326,76 @@ int main(int argc, char *argv[]) {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
+        // Dessiner les backgrounds
+        SDL_Rect bgRect = {0, 0, config.width, config.height};
+        SDL_RenderCopy(renderer, textures.background1, NULL, &bgRect);
+        SDL_RenderCopy(renderer, textures.background2, NULL, &bgRect);
+        SDL_RenderCopy(renderer, textures.background3, NULL, &bgRect);
+
         for (int y = 0; y < LEVEL_HEIGHT; y++) {
             for (int x = 0; x < LEVEL_WIDTH; x++) {
-                SDL_Rect rect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+                SDL_Rect destRect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
                 if (level[y][x] == 7) {
-                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    SDL_RenderCopy(renderer, textures.ground, NULL, &destRect);
                 } else if (level[y][x] == 8) {
                     SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+                    SDL_RenderFillRect(renderer, &destRect);
                 } else if (level[y][x] == 9) {
                     SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-                } else {
-                    continue;
+                    SDL_RenderFillRect(renderer, &destRect);
+                } else if (level[y][x] == 6) {
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+                    SDL_RenderFillRect(renderer, &destRect);
                 }
-                SDL_RenderFillRect(renderer, &rect);
             }
         }
 
-    SDL_Rect playerRect = {
+        SDL_Rect playerRect = {
             playerX,
             playerY,
             TILE_SIZE,
             TILE_SIZE
-    };
+        };
 
-    if (facingRight) {
-        SDL_RenderCopyEx(renderer, playerTexture, NULL, &playerRect, 0, NULL, SDL_FLIP_NONE);
-    } else {
-        SDL_RenderCopyEx(renderer, playerTexture, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
-    }
+        if (facingRight) {
+            SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_NONE);
+        } else {
+            SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
+        }
+
+        // Dessiner le texte en dernier pour qu'il soit au premier plan
+        int textWidth, textHeight;
+        SDL_QueryTexture(textures.levelText, NULL, NULL, &textWidth, &textHeight);
+        SDL_Rect textRect = {
+            (config.width - textWidth) / 2,
+            20,
+            textWidth,
+            textHeight
+        };
+        SDL_RenderCopy(renderer, textures.levelText, NULL, &textRect);
+
+        // Debug
+        if (textures.levelText == NULL) {
+            printf("La texture du texte est NULL\n");
+        }
+
         SDL_RenderPresent(renderer);
 
         SDL_Delay(16);
     }
 
-    SDL_DestroyTexture(playerTexture);
+    SDL_DestroyTexture(textures.background1);
+    SDL_DestroyTexture(textures.background2);
+    SDL_DestroyTexture(textures.background3);
+    SDL_DestroyTexture(textures.player);
+    SDL_DestroyTexture(textures.ground);
+    SDL_DestroyTexture(textures.levelText);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+
+    TTF_CloseFont(font);
+    TTF_Quit();
 
     return 0;
 }
