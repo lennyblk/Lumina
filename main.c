@@ -39,6 +39,9 @@ typedef struct {
     SDL_Texture* background3;
     SDL_Texture* player;
     SDL_Texture* ground;
+    SDL_Texture* rock;
+    SDL_Texture* lamp;
+    SDL_Texture* grass;
     SDL_Texture* levelText;
     SDL_Texture* messageText;
 } GameTextures;
@@ -204,9 +207,13 @@ int main(int argc, char *argv[]) {
     textures.background3 = loadTexture("oak_woods_v1.0/background/background_layer_3.png", renderer);
     textures.player = loadTexture("oak_woods_v1.0/character/malo.png", renderer);
     textures.ground = loadTexture("oak_woods_v1.0/decorations/sol1.png", renderer);
+    textures.rock = loadTexture("oak_woods_v1.0/decorations/rock_3.png", renderer);
+    textures.lamp = loadTexture("oak_woods_v1.0/decorations/lamp.png", renderer);
+    textures.grass = loadTexture("oak_woods_v1.0/decorations/grass_2.png", renderer);
 
     if (!textures.background1 || !textures.background2 || !textures.background3 || 
-        !textures.player || !textures.ground || !textures.levelText) {
+        !textures.player || !textures.ground || !textures.rock || !textures.lamp || 
+        !textures.grass || !textures.levelText) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -275,6 +282,11 @@ int main(int argc, char *argv[]) {
             checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || 
             checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || 
             checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  
+            SDL_Color redColor = {255, 0, 0, 255};
+            renderText(renderer, font, "GAME OVER!", redColor, config.width/2 - 80, config.height/2);
+            SDL_RenderPresent(renderer);
+            SDL_Delay(2000);  // Affiche le message pendant 2 secondes
+            
             if (spawn.hasCheckpoint && spawn.isCheckpointActive) {
                 playerX = spawn.checkpointX;
                 playerY = spawn.checkpointY;
@@ -283,8 +295,6 @@ int main(int argc, char *argv[]) {
                 playerY = spawn.y;
             }
             velocityY = 0;
-            SDL_Color redColor = {255, 0, 0, 255};
-            renderText(renderer, font, "GAME OVER!", redColor, config.width/2 - 100, config.height/2);
         }
 
         if (checkCollision(playerX, playerY, level, 9)) {
@@ -338,14 +348,11 @@ int main(int argc, char *argv[]) {
                 if (level[y][x] == 7) {
                     SDL_RenderCopy(renderer, textures.ground, NULL, &destRect);
                 } else if (level[y][x] == 8) {
-                    SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-                    SDL_RenderFillRect(renderer, &destRect);
+                    SDL_RenderCopy(renderer, textures.rock, NULL, &destRect);
                 } else if (level[y][x] == 9) {
-                    SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-                    SDL_RenderFillRect(renderer, &destRect);
+                    SDL_RenderCopy(renderer, textures.grass, NULL, &destRect);
                 } else if (level[y][x] == 6) {
-                    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
-                    SDL_RenderFillRect(renderer, &destRect);
+                    SDL_RenderCopy(renderer, textures.lamp, NULL, &destRect);
                 }
             }
         }
@@ -389,6 +396,9 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(textures.background3);
     SDL_DestroyTexture(textures.player);
     SDL_DestroyTexture(textures.ground);
+    SDL_DestroyTexture(textures.rock);
+    SDL_DestroyTexture(textures.lamp);
+    SDL_DestroyTexture(textures.grass);
     SDL_DestroyTexture(textures.levelText);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
