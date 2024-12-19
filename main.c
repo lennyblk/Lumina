@@ -4,6 +4,7 @@
 #include "cJSON.h"
 #include <SDL_image.h>
 #include <SDL_ttf.h>
+#include <string.h>
 
 #define TILE_SIZE 16
 #define LEVEL_WIDTH 80   
@@ -118,6 +119,19 @@ int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileT
     return 0;
 }
 
+//check colision by malo 4pixels de marge
+int checkCollision4P(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
+    int tileXP = ((x+4) / TILE_SIZE)-1;
+    int tileXM = ((x-4) / TILE_SIZE)-1;
+    int tileY = y / TILE_SIZE;
+
+   
+    return level[tileY][tileXP] == tileType || level[tileY][tileXP] == tileType;
+   
+    
+}
+
+
 int checkAboveCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
     int tileX = x / TILE_SIZE;
     int tileY = (y - TILE_SIZE) / TILE_SIZE;
@@ -151,7 +165,8 @@ void renderText(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Co
 
 int main(int argc, char *argv[]) {
     GameConfig config = loadConfig("config.json");
-
+    int try = 0;
+    char tryString[] ={'0','0','0','0',' ', ':', ' ','t','e','n','t','a','t','i','v','e','s','\0'};
     int level[LEVEL_HEIGHT][LEVEL_WIDTH];
     loadLevel("levels/level1.txt", level);
 
@@ -184,7 +199,7 @@ int main(int argc, char *argv[]) {
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-    TTF_Font* font = TTF_OpenFont("oak_woods_v1.0/fonts/SuperPixel-m2L8j.ttf", 24);
+    TTF_Font* font = TTF_OpenFont("oak_woods_v1.0/fonts/KnightWarrior-w16n8.otf", 24);
     if (!font) {
         printf("Erreur lors du chargement de la police : %s\n", TTF_GetError());
         return 1;
@@ -192,9 +207,9 @@ int main(int argc, char *argv[]) {
 
     GameTextures textures;
     
-    // Création du texte
     SDL_Color textColor = {255, 255, 255, 255};
     SDL_Surface* textSurface = TTF_RenderText_Solid(font, "First Level", textColor);
+
     if (!textSurface) {
         printf("Erreur lors de la création du texte : %s\n", TTF_GetError());
         return 1;
@@ -234,6 +249,7 @@ int main(int argc, char *argv[]) {
     int velocityY = 0;
     int canJump = 2;
     int facingRight = 1;
+    
 
     int keys[SDL_NUM_SCANCODES] = {0};
 
@@ -270,21 +286,69 @@ int main(int argc, char *argv[]) {
         velocityY += 1;
         playerY += velocityY;
 
-        if (velocityY > 0) {
-            while (checkCollision(playerX, playerY + TILE_SIZE, level, 7)) {
+        // le probleme de velocity qui traverse la plateforme est la 
+        //en bas à gauche checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7)
+        //en bas à droite checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7)
+        //en haut à gauche checkCollision(playerX, playerY, level, 7)
+        //en haut à droite checkCollision(playerX + TILE_SIZE - 1, playerY, level, 7)
+
+        //check haut
+        if (1) { //if (velocityY = 0)
+            while (
+                checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7) &&
+                checkCollision4P(playerX, playerY, level,7)
+            ) 
+            {
                 playerY--;
                 velocityY = 0;
                 canJump = 2;
             }
         }
 
+        if (1) { //if (velocityY = 0)
+            while (
+                checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7) &&
+                checkCollision4P(playerX + TILE_SIZE - 1, playerY, level,7)
+            ) 
+            {
+                playerY--;
+                velocityY = 0;
+                canJump = 2;
+            }
+        }
+        
+ //check bas
+        if (1) { //if (velocityY = 0)
+            while (((checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7) || 
+            checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE -1, level, 7))) &&
+            !((checkCollision(playerX, playerY, level, 7) || 
+            checkCollision(playerX + TILE_SIZE - 1, playerY , level, 7)))
+            )
+             {
+                playerY--;
+                velocityY = 0;
+                canJump = 2;
+            }
+        }
+
+    
+
+       
+
         if (checkCollision(playerX, playerY, level, 8) || 
             checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || 
             checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || 
             checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  
             SDL_Color redColor = {255, 0, 0, 255};
-            renderText(renderer, font, "GAME OVER!", redColor, config.width/2 - 80, config.height/2);
+            renderText(renderer, font, "GAME OVER", redColor, config.width/2 - 80, config.height/2);
+            try++;
+            tryString[3] = (char)(try%10)+48;
+            tryString[2] = (char)((try/10)%10)+48;
+            tryString[1] = (char)((try/100)%10)+48;
+            tryString[0] = (char)((try/1000)%10)+48;
             SDL_RenderPresent(renderer);
+            
+
             SDL_Delay(2000);  // Affiche le message pendant 2 secondes
             
             if (spawn.hasCheckpoint && spawn.isCheckpointActive) {
@@ -311,8 +375,10 @@ int main(int argc, char *argv[]) {
             spawn.hasCheckpoint = 1;
             if (!spawn.isCheckpointActive) {
                 spawn.isCheckpointActive = 1;
-                SDL_Color blueColor = {0, 0, 255, 255};
-                renderText(renderer, font, "Checkpoint!", blueColor, config.width/2 - 90, config.height/2);
+                SDL_Color blueColor = {0, 255, 255, 255};
+                renderText(renderer, font, "Checkpoint!", blueColor, config.width/2, config.height/2);
+                SDL_RenderPresent(renderer);
+                SDL_Delay(500);
             }
         }
 
@@ -372,7 +438,10 @@ int main(int argc, char *argv[]) {
 
         // Dessiner le texte en dernier pour qu'il soit au premier plan
         int textWidth, textHeight;
+        SDL_Color Color = {200, 200, 200, 255};
         SDL_QueryTexture(textures.levelText, NULL, NULL, &textWidth, &textHeight);
+        renderText(renderer, font, tryString, Color, config.width/3 - 400, config.height/42);
+        SDL_RenderPresent(renderer);
         SDL_Rect textRect = {
             (config.width - textWidth) / 2,
             20,
