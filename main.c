@@ -47,6 +47,26 @@ typedef struct {
     SDL_Texture* messageText;
 } GameTextures;
 
+typedef enum {
+    MENU,
+    LEVELS,
+    SETTINGS,
+    EXIT
+} GameState;
+
+typedef struct {
+    SDL_Texture* titleText;
+    SDL_Texture* levelsText;
+    SDL_Texture* settingsText;
+    SDL_Texture* exitText;
+} MenuTextures;
+
+typedef struct {
+    SDL_Texture* level1Text;
+    SDL_Texture* level2Text;
+    SDL_Texture* backText;
+} LevelsMenuTextures;
+
 GameConfig loadConfig(const char *filePath) {
     GameConfig config;
     FILE *file = fopen(filePath, "r");
@@ -121,12 +141,13 @@ int checkCollision(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileT
 
 //check colision by malo 4pixels de marge
 int checkCollision4P(int x, int y, int level[LEVEL_HEIGHT][LEVEL_WIDTH], int tileType) {
-    int tileXP = ((x+4) / TILE_SIZE)-1;
-    int tileXM = ((x-4) / TILE_SIZE)-1;
-    int tileY = y / TILE_SIZE;
+    int tileX = x / TILE_SIZE;
+    int tileYM = (y / TILE_SIZE);
+    int tileYP = ((y+4) / TILE_SIZE)+1;
+
 
    
-    return level[tileY][tileXP] == tileType || level[tileY][tileXP] == tileType;
+    return level[tileYP][tileX] == tileType || level[tileYM][tileX] == tileType;
    
     
 }
@@ -161,6 +182,113 @@ void renderText(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Co
         SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
         SDL_DestroyTexture(textTexture);
     }
+}
+
+int isMouseOverButton(int mouseX, int mouseY, SDL_Rect buttonRect) {
+    return mouseX >= buttonRect.x && mouseX <= buttonRect.x + buttonRect.w &&
+           mouseY >= buttonRect.y && mouseY <= buttonRect.y + buttonRect.h;
+}
+
+void renderMenu(SDL_Renderer* renderer, MenuTextures* menuTextures, SDL_Rect* levelsRect, SDL_Rect* settingsRect, SDL_Rect* exitRect) {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    int textWidth, textHeight;
+
+    SDL_QueryTexture(menuTextures->titleText, NULL, NULL, &textWidth, &textHeight);
+    SDL_Rect titleRect = {300, 100, textWidth, textHeight};
+    SDL_RenderCopy(renderer, menuTextures->titleText, NULL, &titleRect);
+
+    SDL_QueryTexture(menuTextures->levelsText, NULL, NULL, &textWidth, &textHeight);
+    *levelsRect = (SDL_Rect){350, 200, textWidth, textHeight};
+    SDL_RenderCopy(renderer, menuTextures->levelsText, NULL, levelsRect);
+
+    SDL_QueryTexture(menuTextures->settingsText, NULL, NULL, &textWidth, &textHeight);
+    *settingsRect = (SDL_Rect){350, 300, textWidth, textHeight};
+    SDL_RenderCopy(renderer, menuTextures->settingsText, NULL, settingsRect);
+
+    SDL_QueryTexture(menuTextures->exitText, NULL, NULL, &textWidth, &textHeight);
+    *exitRect = (SDL_Rect){350, 400, textWidth, textHeight};
+    SDL_RenderCopy(renderer, menuTextures->exitText, NULL, exitRect);
+
+    SDL_RenderPresent(renderer);
+}
+
+void renderLevelsMenu(SDL_Renderer* renderer, LevelsMenuTextures* levelsMenuTextures, SDL_Rect* level1Rect, SDL_Rect* level2Rect, SDL_Rect* backRect) {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    int textWidth, textHeight;
+
+    SDL_QueryTexture(levelsMenuTextures->level1Text, NULL, NULL, &textWidth, &textHeight);
+    *level1Rect = (SDL_Rect){350, 200, textWidth, textHeight};
+    SDL_RenderCopy(renderer, levelsMenuTextures->level1Text, NULL, level1Rect);
+
+    SDL_QueryTexture(levelsMenuTextures->level2Text, NULL, NULL, &textWidth, &textHeight);
+    *level2Rect = (SDL_Rect){350, 300, textWidth, textHeight};
+    SDL_RenderCopy(renderer, levelsMenuTextures->level2Text, NULL, level2Rect);
+
+    SDL_QueryTexture(levelsMenuTextures->backText, NULL, NULL, &textWidth, &textHeight);
+    *backRect = (SDL_Rect){350, 400, textWidth, textHeight};
+    SDL_RenderCopy(renderer, levelsMenuTextures->backText, NULL, backRect);
+
+    SDL_RenderPresent(renderer);
+}
+
+void renderSettings(SDL_Renderer* renderer, TTF_Font* font, GameConfig* config, SDL_Texture* backText, SDL_Rect* backRect) {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    SDL_Color textColor = {255, 255, 255, 255};
+    char buffer[256];
+    int textWidth, textHeight;
+
+    snprintf(buffer, sizeof(buffer), "Volume: %d", config->volume);
+    renderText(renderer, font, buffer, textColor, 100, 100);
+
+    snprintf(buffer, sizeof(buffer), "Resolution: %dx%d", config->width, config->height);
+    renderText(renderer, font, buffer, textColor, 100, 150);
+
+    snprintf(buffer, sizeof(buffer), "Jump Key: %d", config->jumpKey);
+    renderText(renderer, font, buffer, textColor, 100, 200);
+
+    snprintf(buffer, sizeof(buffer), "Dash Key: %d", config->dashKey);
+    renderText(renderer, font, buffer, textColor, 100, 250);
+
+    snprintf(buffer, sizeof(buffer), "Move Left Key: %d", config->moveLeftKey);
+    renderText(renderer, font, buffer, textColor, 100, 300);
+
+    snprintf(buffer, sizeof(buffer), "Move Right Key: %d", config->moveRightKey);
+    renderText(renderer, font, buffer, textColor, 100, 350);
+
+    SDL_QueryTexture(backText, NULL, NULL, &textWidth, &textHeight);
+    *backRect = (SDL_Rect){350, 400, textWidth, textHeight};
+    SDL_RenderCopy(renderer, backText, NULL, backRect);
+
+    SDL_RenderPresent(renderer);
+}
+
+void saveConfig(const char *filePath, GameConfig *config) {
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(json, "volume", config->volume);
+    cJSON_AddNumberToObject(json, "resolution_width", config->width);
+    cJSON_AddNumberToObject(json, "resolution_height", config->height);
+    cJSON_AddNumberToObject(json, "jumpKey", config->jumpKey);
+    cJSON_AddNumberToObject(json, "dashKey", config->dashKey);
+    cJSON_AddNumberToObject(json, "moveLeftKey", config->moveLeftKey);
+    cJSON_AddNumberToObject(json, "moveRightKey", config->moveRightKey);
+
+    char *jsonString = cJSON_Print(json);
+    FILE *file = fopen(filePath, "w");
+    if (file == NULL) {
+        perror("Erreur lors de l'ouverture du fichier de configuration pour écriture");
+        exit(1);
+    }
+    fputs(jsonString, file);
+    fclose(file);
+
+    cJSON_Delete(json);
+    free(jsonString);
 }
 
 int main(int argc, char *argv[]) {
@@ -235,6 +363,29 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    MenuTextures menuTextures;
+    menuTextures.titleText = createTextTexture(font, "Menu Principal", textColor, renderer);
+    menuTextures.levelsText = createTextTexture(font, "Levels", textColor, renderer);
+    menuTextures.settingsText = createTextTexture(font, "Settings", textColor, renderer);
+    menuTextures.exitText = createTextTexture(font, "Exit", textColor, renderer);
+
+    if (!menuTextures.titleText || !menuTextures.levelsText || !menuTextures.settingsText || !menuTextures.exitText) {
+        printf("Erreur lors de la création des textures de texte du menu\n");
+        return 1;
+    }
+
+    LevelsMenuTextures levelsMenuTextures;
+    levelsMenuTextures.level1Text = createTextTexture(font, "Level 1", textColor, renderer);
+    levelsMenuTextures.level2Text = createTextTexture(font, "Level 2", textColor, renderer);
+    levelsMenuTextures.backText = createTextTexture(font, "Back", textColor, renderer);
+
+    if (!levelsMenuTextures.level1Text || !levelsMenuTextures.level2Text || !levelsMenuTextures.backText) {
+        printf("Erreur lors de la création des textures de texte du menu des niveaux\n");
+        return 1;
+    }
+
+    GameState gameState = MENU;
+
     PlayerSpawn spawn = {
         .x = 0,
         .y = config.height - TILE_SIZE,
@@ -256,210 +407,287 @@ int main(int argc, char *argv[]) {
     SDL_Event event;
     int running = 1;
     
+    SDL_Rect levelsRect, settingsRect, exitRect;
+    SDL_Rect level1Rect, level2Rect, backRect;
+
     while (running) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = 0;
             } else if (event.type == SDL_KEYDOWN) {
                 keys[event.key.keysym.scancode] = 1;
+                if (gameState == MENU) {
+                    switch (event.key.keysym.sym) {
+                        case SDLK_1:
+                            gameState = LEVELS;
+                            break;
+                        case SDLK_2:
+                            gameState = SETTINGS;
+                            break;
+                        case SDLK_3:
+                            running = 0;
+                            break;
+                    }
+                } else if (gameState == LEVELS) {
+                    // ...existing code for level selection...
+                } else if (gameState == SETTINGS) {
+                    // ...existing code for settings...
+                }
             } else if (event.type == SDL_KEYUP) {
                 keys[event.key.keysym.scancode] = 0;
-            }
-        }
-
-        if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
-            playerX -= TILE_SIZE / 4;
-            facingRight = 1;
-        }
-        if (keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
-            playerX += TILE_SIZE / 4;
-            facingRight = 0;
-        }
-
-        if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
-            if (!checkAboveCollision(playerX, playerY, level, 7)) { 
-                velocityY = -TILE_SIZE / 1.2;
-                canJump--;
-            }
-        }
-
-        velocityY += 1;
-        playerY += velocityY;
-
-        // le probleme de velocity qui traverse la plateforme est la 
-        //en bas à gauche checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7)
-        //en bas à droite checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7)
-        //en haut à gauche checkCollision(playerX, playerY, level, 7)
-        //en haut à droite checkCollision(playerX + TILE_SIZE - 1, playerY, level, 7)
-
-        //check haut
-        if (1) { //if (velocityY = 0)
-            while (
-                checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7) &&
-                checkCollision4P(playerX, playerY, level,7)
-            ) 
-            {
-                playerY--;
-                velocityY = 0;
-                canJump = 2;
-            }
-        }
-
-        if (1) { //if (velocityY = 0)
-            while (
-                checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7) &&
-                checkCollision4P(playerX + TILE_SIZE - 1, playerY, level,7)
-            ) 
-            {
-                playerY--;
-                velocityY = 0;
-                canJump = 2;
-            }
-        }
-        
- //check bas
-        if (1) { //if (velocityY = 0)
-            while (((checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7) || 
-            checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE -1, level, 7))) &&
-            !((checkCollision(playerX, playerY, level, 7) || 
-            checkCollision(playerX + TILE_SIZE - 1, playerY , level, 7)))
-            )
-             {
-                playerY--;
-                velocityY = 0;
-                canJump = 2;
-            }
-        }
-
-    
-
-       
-
-        if (checkCollision(playerX, playerY, level, 8) || 
-            checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || 
-            checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || 
-            checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  
-            SDL_Color redColor = {255, 0, 0, 255};
-            renderText(renderer, font, "GAME OVER", redColor, config.width/2 - 80, config.height/2);
-            try++;
-            tryString[3] = (char)(try%10)+48;
-            tryString[2] = (char)((try/10)%10)+48;
-            tryString[1] = (char)((try/100)%10)+48;
-            tryString[0] = (char)((try/1000)%10)+48;
-            SDL_RenderPresent(renderer);
-            
-
-            SDL_Delay(2000);  // Affiche le message pendant 2 secondes
-            
-            if (spawn.hasCheckpoint && spawn.isCheckpointActive) {
-                playerX = spawn.checkpointX;
-                playerY = spawn.checkpointY;
-            } else {
-                playerX = spawn.x;
-                playerY = spawn.y;
-            }
-            velocityY = 0;
-        }
-
-        if (checkCollision(playerX, playerY, level, 9)) {
-            SDL_Color greenColor = {0, 255, 0, 255};
-            renderText(renderer, font, "YOU WIN!", greenColor, config.width/2 - 80, config.height/2);
-            SDL_RenderPresent(renderer);
-            SDL_Delay(2000);  // Affiche le message pendant 2 secondes
-            running = 0;
-        }
-
-        if (checkCollision(playerX, playerY, level, 6)) {
-            spawn.checkpointX = playerX;
-            spawn.checkpointY = playerY;
-            spawn.hasCheckpoint = 1;
-            if (!spawn.isCheckpointActive) {
-                spawn.isCheckpointActive = 1;
-                SDL_Color blueColor = {0, 255, 255, 255};
-                renderText(renderer, font, "Checkpoint!", blueColor, config.width/2, config.height/2);
-                SDL_RenderPresent(renderer);
-                SDL_Delay(500);
-            }
-        }
-
-        // pour pas que le joueur sorte de la map horizontalement
-        if (playerX < 0) {
-            playerX = 0;
-        } else if (playerX > config.width - TILE_SIZE) {
-            playerX = config.width - TILE_SIZE;
-        }
-
-        // pour pas que le joueur sorte de la map verticalement
-        if (playerY < 0) {
-            playerY = 0;
-            velocityY = 0;  
-        } else if (playerY >= config.height - TILE_SIZE) {
-            playerY = config.height - TILE_SIZE;
-            velocityY = 0;
-            canJump = 2;
-        }
-
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-
-        // Dessiner les backgrounds
-        SDL_Rect bgRect = {0, 0, config.width, config.height};
-        SDL_RenderCopy(renderer, textures.background1, NULL, &bgRect);
-        SDL_RenderCopy(renderer, textures.background2, NULL, &bgRect);
-        SDL_RenderCopy(renderer, textures.background3, NULL, &bgRect);
-
-        for (int y = 0; y < LEVEL_HEIGHT; y++) {
-            for (int x = 0; x < LEVEL_WIDTH; x++) {
-                SDL_Rect destRect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
-                if (level[y][x] == 7) {
-                    SDL_RenderCopy(renderer, textures.ground, NULL, &destRect);
-                } else if (level[y][x] == 8) {
-                    SDL_RenderCopy(renderer, textures.rock, NULL, &destRect);
-                } else if (level[y][x] == 9) {
-                    SDL_RenderCopy(renderer, textures.grass, NULL, &destRect);
-                } else if (level[y][x] == 6) {
-                    SDL_RenderCopy(renderer, textures.lamp, NULL, &destRect);
+            } else if (event.type == SDL_MOUSEBUTTONDOWN) {
+                int mouseX = event.button.x;
+                int mouseY = event.button.y;
+                if (gameState == MENU) {
+                    if (isMouseOverButton(mouseX, mouseY, levelsRect)) {
+                        gameState = LEVELS;
+                    } else if (isMouseOverButton(mouseX, mouseY, settingsRect)) {
+                        gameState = SETTINGS;
+                    } else if (isMouseOverButton(mouseX, mouseY, exitRect)) {
+                        running = 0;
+                    }
+                } else if (gameState == LEVELS) {
+                    if (isMouseOverButton(mouseX, mouseY, level1Rect)) {
+                        loadLevel("levels/level1.txt", level);
+                        gameState = MENU; // Retour au menu principal après sélection
+                    } else if (isMouseOverButton(mouseX, mouseY, level2Rect)) {
+                        loadLevel("levels/level2.txt", level);
+                        gameState = MENU; // Retour au menu principal après sélection
+                    } else if (isMouseOverButton(mouseX, mouseY, backRect)) {
+                        gameState = MENU;
+                    }
+                } else if (gameState == SETTINGS) {
+                    if (isMouseOverButton(mouseX, mouseY, backRect)) {
+                        gameState = MENU;
+                    }
                 }
             }
         }
 
-        SDL_Rect playerRect = {
-            playerX,
-            playerY,
-            TILE_SIZE,
-            TILE_SIZE
-        };
+        if (gameState == MENU) {
+            renderMenu(renderer, &menuTextures, &levelsRect, &settingsRect, &exitRect);
+        } else if (gameState == LEVELS) {
+            renderLevelsMenu(renderer, &levelsMenuTextures, &level1Rect, &level2Rect, &backRect);
+        } else if (gameState == SETTINGS) {
+            renderSettings(renderer, font, &config, levelsMenuTextures.backText, &backRect);
+        } else if (gameState == LEVELS) {
+            if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
+                playerX -= TILE_SIZE / 4;
+                facingRight = 1;
+            }
+            if (keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
+                playerX += TILE_SIZE / 4;
+                facingRight = 0;
+            }
 
-        if (facingRight) {
-            SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_NONE);
-        } else {
-            SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
+            if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
+                if (!checkAboveCollision(playerX, playerY, level, 7)) { 
+                    velocityY = -TILE_SIZE / 1.2;
+                    canJump--;
+                }
+            }
+            if(velocityY<10){
+            velocityY += 1;
+            }
+            playerY += velocityY;
+
+            // le probleme de velocity qui traverse la plateforme est la 
+            //en bas à gauche checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7)
+            //en bas à droite checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7)
+            //en haut à gauche checkCollision(playerX, playerY, level, 7)
+            //en haut à droite checkCollision(playerX + TILE_SIZE - 1, playerY, level, 7)
+
+            if (1) { // check mur gauche
+                while (
+                    checkCollision(playerX, playerY, level, 7) &&
+                    checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7)
+                ) 
+                {
+                    playerX ++;
+                }
+            }
+            
+            if (1) { // check mur droit
+                while (
+                    checkCollision(playerX + TILE_SIZE - 1, playerY, level, 7) &&
+                    checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7)
+                ) 
+                {
+                    playerX --;
+                }
+            }
+
+            if (1) { // check plafond
+                while (
+                    (checkCollision(playerX, playerY, level, 7) &&
+                    !(checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7)) ||
+                    checkCollision(playerX + TILE_SIZE - 1, playerY, level, 7) &&
+                    !(checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7))
+                    )
+                ) 
+                {
+                    playerY++;
+                    velocityY = 0;
+
+                }
+            }
+
+            if (1) { //if (velocityY = 0)
+                while (
+                    checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7) &&
+                    checkCollision4P(playerX, playerY, level,7)
+                ) 
+                {
+                    playerY--;
+                    velocityY = 0;
+                    canJump = 2;
+                }
+            }
+
+            if (1) { //if (velocityY = 0)
+                while (
+                    checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7) &&
+                    checkCollision4P(playerX + TILE_SIZE - 1, playerY, level,7)
+                ) 
+                {
+                    playerY--;
+                    velocityY = 0;
+                    canJump = 2;
+                }
+            }
+
+            if (checkCollision(playerX, playerY, level, 8) || 
+                checkCollision(playerX + TILE_SIZE - 1, playerY, level, 8) || 
+                checkCollision(playerX, playerY + TILE_SIZE - 1, level, 8) || 
+                checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 8)) {  
+                SDL_Color redColor = {255, 0, 0, 255};
+                renderText(renderer, font, "GAME OVER", redColor, config.width/2 - 80, config.height/2);
+                try++;
+                tryString[3] = (char)(try%10)+48; // calcul pour les tentative
+                tryString[2] = (char)((try/10)%10)+48;
+                tryString[1] = (char)((try/100)%10)+48;
+                tryString[0] = (char)((try/1000)%10)+48;
+                SDL_RenderPresent(renderer);
+                
+
+                SDL_Delay(2000);  // Affiche le message pendant 2 secondes
+                
+                if (spawn.hasCheckpoint && spawn.isCheckpointActive) {
+                    playerX = spawn.checkpointX;
+                    playerY = spawn.checkpointY;
+                } else {
+                    playerX = spawn.x;
+                    playerY = spawn.y;
+                }
+                velocityY = 0;
+            }
+
+            if (checkCollision(playerX, playerY, level, 9)) {
+                SDL_Color greenColor = {0, 255, 0, 255};
+                renderText(renderer, font, "YOU WIN!", greenColor, config.width/2 - 80, config.height/2);
+                SDL_RenderPresent(renderer);
+                SDL_Delay(2000);  // Affiche le message pendant 2 secondes
+                running = 0;
+            }
+
+            if (checkCollision(playerX, playerY, level, 6)) {
+                spawn.checkpointX = playerX;
+                spawn.checkpointY = playerY;
+                spawn.hasCheckpoint = 1;
+                if (!spawn.isCheckpointActive) {
+                    spawn.isCheckpointActive = 1;
+                    SDL_Color blueColor = {0, 255, 255, 255};
+                    renderText(renderer, font, "Checkpoint!", blueColor, config.width/2, config.height/2);
+                    SDL_RenderPresent(renderer);
+                    SDL_Delay(500);
+                }
+            }
+
+            // pour pas que le joueur sorte de la map horizontalement
+            if (playerX < 0) {
+                playerX = 0;
+            } else if (playerX > config.width - TILE_SIZE) {
+                playerX = config.width - TILE_SIZE;
+            }
+
+            // pour pas que le joueur sorte de la map verticalement
+            if (playerY < 0) {
+                playerY = 0;
+                velocityY = 0;  
+            } else if (playerY >= config.height - TILE_SIZE) {
+                playerY = config.height - TILE_SIZE;
+                velocityY = 0;
+                canJump = 2;
+            }
+
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+
+            // Dessiner les backgrounds
+            SDL_Rect bgRect = {0, 0, config.width, config.height};
+            SDL_RenderCopy(renderer, textures.background1, NULL, &bgRect);
+            SDL_RenderCopy(renderer, textures.background2, NULL, &bgRect);
+            SDL_RenderCopy(renderer, textures.background3, NULL, &bgRect);
+
+            for (int y = 0; y < LEVEL_HEIGHT; y++) {
+                for (int x = 0; x < LEVEL_WIDTH; x++) {
+                    SDL_Rect destRect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+                    if (level[y][x] == 7) {
+                        SDL_RenderCopy(renderer, textures.ground, NULL, &destRect);
+                    } else if (level[y][x] == 8) {
+                        SDL_RenderCopy(renderer, textures.rock, NULL, &destRect);
+                    } else if (level[y][x] == 9) {
+                        SDL_RenderCopy(renderer, textures.grass, NULL, &destRect);
+                    } else if (level[y][x] == 6) {
+                        SDL_RenderCopy(renderer, textures.lamp, NULL, &destRect);
+                    }
+                }
+            }
+
+            SDL_Rect playerRect = {
+                playerX,
+                playerY,
+                TILE_SIZE,
+                TILE_SIZE
+            };
+
+            if (facingRight) {
+                SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_NONE);
+            } else {
+                SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
+            }
+
+            // Dessiner le texte en dernier pour qu'il soit au premier plan
+            int textWidth, textHeight;
+            SDL_Color Color = {200, 200, 200, 255};
+            SDL_QueryTexture(textures.levelText, NULL, NULL, &textWidth, &textHeight);
+            renderText(renderer, font, tryString, Color, config.width/3 - 400, config.height/42);
+            SDL_RenderPresent(renderer);
+            SDL_Rect textRect = {
+                (config.width - textWidth) / 2,
+                20,
+                textWidth,
+                textHeight
+            };
+            SDL_RenderCopy(renderer, textures.levelText, NULL, &textRect);
+
+            // Debug
+            if (textures.levelText == NULL) {
+                printf("La texture du texte est NULL\n");
+            }
+
+            SDL_RenderPresent(renderer);
+
+            SDL_Delay(16);
+        } else if (gameState == SETTINGS) {
+            renderSettings(renderer, font, &config, levelsMenuTextures.backText, &backRect);
         }
-
-        // Dessiner le texte en dernier pour qu'il soit au premier plan
-        int textWidth, textHeight;
-        SDL_Color Color = {200, 200, 200, 255};
-        SDL_QueryTexture(textures.levelText, NULL, NULL, &textWidth, &textHeight);
-        renderText(renderer, font, tryString, Color, config.width/3 - 400, config.height/42);
-        SDL_RenderPresent(renderer);
-        SDL_Rect textRect = {
-            (config.width - textWidth) / 2,
-            20,
-            textWidth,
-            textHeight
-        };
-        SDL_RenderCopy(renderer, textures.levelText, NULL, &textRect);
-
-        // Debug
-        if (textures.levelText == NULL) {
-            printf("La texture du texte est NULL\n");
-        }
-
-        SDL_RenderPresent(renderer);
-
-        SDL_Delay(16);
     }
 
+    SDL_DestroyTexture(menuTextures.titleText);
+    SDL_DestroyTexture(menuTextures.levelsText);
+    SDL_DestroyTexture(menuTextures.settingsText);
+    SDL_DestroyTexture(menuTextures.exitText);
     SDL_DestroyTexture(textures.background1);
     SDL_DestroyTexture(textures.background2);
     SDL_DestroyTexture(textures.background3);
@@ -469,6 +697,9 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(textures.lamp);
     SDL_DestroyTexture(textures.grass);
     SDL_DestroyTexture(textures.levelText);
+    SDL_DestroyTexture(levelsMenuTextures.level1Text);
+    SDL_DestroyTexture(levelsMenuTextures.level2Text);
+    SDL_DestroyTexture(levelsMenuTextures.backText);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
