@@ -51,6 +51,9 @@ typedef enum {
     MENU,
     LEVELS,
     SETTINGS,
+    PLAYING,
+    PAUSED, // Add new game state
+    UPLOAD_LEVEL, // Add new game state
     EXIT
 } GameState;
 
@@ -410,6 +413,23 @@ int main(int argc, char *argv[]) {
     SDL_Rect levelsRect, settingsRect, exitRect;
     SDL_Rect level1Rect, level2Rect, backRect;
 
+    SDL_Rect pauseButtonRect = {config.width - 50, 10, 40, 40}; // Position and size of the pause button
+    SDL_Rect playButtonRect = {config.width / 2 - 50, config.height / 2 - 20, 100, 40}; // Position and size of the play button
+    SDL_Rect backToMenuButtonRect = {config.width / 2 - 50, config.height / 2 + 30, 100, 40}; // Position and size of the back to menu button
+
+    SDL_Texture* pauseButtonTexture = createTextTexture(font, "Pause", textColor, renderer);
+    SDL_Texture* playButtonTexture = createTextTexture(font, "Play", textColor, renderer);
+    SDL_Texture* backToMenuButtonTexture = createTextTexture(font, "Back to Menu", textColor, renderer);
+
+    SDL_Rect uploadLevelButtonRect = {350, 500, 200, 50}; // Position and size of the upload level button
+    SDL_Rect uploadFileButtonRect = {350, 400, 200, 50}; // Position and size of the upload file button
+
+    SDL_Texture* uploadLevelButtonTexture = createTextTexture(font, "Upload your own level!", textColor, renderer);
+    SDL_Texture* uploadFileButtonTexture = createTextTexture(font, "Upload your file here", textColor, renderer);
+
+    char levelText[256] = "First Level"; // Variable pour stocker le texte du niveau
+    SDL_Texture* levelTextTexture = NULL; // Texture pour le texte du niveau
+
     while (running) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
@@ -432,6 +452,10 @@ int main(int argc, char *argv[]) {
                     // ...existing code for level selection...
                 } else if (gameState == SETTINGS) {
                     // ...existing code for settings...
+                } else if (gameState == PAUSED) {
+                    // Handle key events in paused state if needed
+                } else if (gameState == UPLOAD_LEVEL) {
+                    // Handle key events in upload level state if needed
                 }
             } else if (event.type == SDL_KEYUP) {
                 keys[event.key.keysym.scancode] = 0;
@@ -449,28 +473,61 @@ int main(int argc, char *argv[]) {
                 } else if (gameState == LEVELS) {
                     if (isMouseOverButton(mouseX, mouseY, level1Rect)) {
                         loadLevel("levels/level1.txt", level);
-                        gameState = MENU; // Retour au menu principal après sélection
+                        gameState = PLAYING; // Change to PLAYING state
+                        strcpy(levelText, "First Level"); // Mettre à jour le texte du niveau
+                        if (levelTextTexture) {
+                            SDL_DestroyTexture(levelTextTexture);
+                        }
+                        levelTextTexture = createTextTexture(font, levelText, textColor, renderer);
                     } else if (isMouseOverButton(mouseX, mouseY, level2Rect)) {
                         loadLevel("levels/level2.txt", level);
-                        gameState = MENU; // Retour au menu principal après sélection
+                        gameState = PLAYING; // Change to PLAYING state
+                        strcpy(levelText, "Second Level"); // Mettre à jour le texte du niveau
+                        if (levelTextTexture) {
+                            SDL_DestroyTexture(levelTextTexture);
+                        }
+                        levelTextTexture = createTextTexture(font, levelText, textColor, renderer);
                     } else if (isMouseOverButton(mouseX, mouseY, backRect)) {
                         gameState = MENU;
+                    } else if (isMouseOverButton(mouseX, mouseY, uploadLevelButtonRect)) {
+                        gameState = UPLOAD_LEVEL; // Change to UPLOAD_LEVEL state
                     }
                 } else if (gameState == SETTINGS) {
                     if (isMouseOverButton(mouseX, mouseY, backRect)) {
                         gameState = MENU;
                     }
+                } else if (gameState == PLAYING) {
+                    if (isMouseOverButton(mouseX, mouseY, pauseButtonRect)) {
+                        gameState = PAUSED; // Change to PAUSED state
+                    }
+                } else if (gameState == PAUSED) {
+                    if (isMouseOverButton(mouseX, mouseY, playButtonRect)) {
+                        gameState = PLAYING; // Change back to PLAYING state
+                    } else if (isMouseOverButton(mouseX, mouseY, backToMenuButtonRect)) {
+                        gameState = MENU; // Change to MENU state
+                    }
+                } else if (gameState == UPLOAD_LEVEL) {
+                    if (isMouseOverButton(mouseX, mouseY, uploadFileButtonRect)) {
+                        // Handle file upload logic here
+                        // For simplicity, we will just print a message
+                        printf("File upload button clicked\n");
+                    }
                 }
-            }
+            } 
         }
 
         if (gameState == MENU) {
             renderMenu(renderer, &menuTextures, &levelsRect, &settingsRect, &exitRect);
         } else if (gameState == LEVELS) {
             renderLevelsMenu(renderer, &levelsMenuTextures, &level1Rect, &level2Rect, &backRect);
+            // Render the upload level button
+            SDL_RenderCopy(renderer, uploadLevelButtonTexture, NULL, &uploadLevelButtonRect);
+            SDL_RenderPresent(renderer);
         } else if (gameState == SETTINGS) {
             renderSettings(renderer, font, &config, levelsMenuTextures.backText, &backRect);
-        } else if (gameState == LEVELS) {
+        } else if (gameState == PLAYING) { // Add rendering logic for PLAYING state
+            // ...existing code for game rendering...
+            // Move the game rendering logic here
             if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
                 playerX -= TILE_SIZE / 4;
                 facingRight = 1;
@@ -657,30 +714,64 @@ int main(int argc, char *argv[]) {
                 SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
             }
 
+            // Dessiner le bouton de pause
+            SDL_RenderCopy(renderer, pauseButtonTexture, NULL, &pauseButtonRect);
+
             // Dessiner le texte en dernier pour qu'il soit au premier plan
             int textWidth, textHeight;
             SDL_Color Color = {200, 200, 200, 255};
-            SDL_QueryTexture(textures.levelText, NULL, NULL, &textWidth, &textHeight);
-            renderText(renderer, font, tryString, Color, config.width/3 - 400, config.height/42);
-            SDL_RenderPresent(renderer);
+            SDL_QueryTexture(levelTextTexture, NULL, NULL, &textWidth, &textHeight);
             SDL_Rect textRect = {
                 (config.width - textWidth) / 2,
                 20,
                 textWidth,
                 textHeight
             };
-            SDL_RenderCopy(renderer, textures.levelText, NULL, &textRect);
+            SDL_RenderCopy(renderer, levelTextTexture, NULL, &textRect);
+
+            renderText(renderer, font, tryString, Color, config.width/3 - 400, config.height/42);
+            SDL_RenderPresent(renderer);
 
             // Debug
-            if (textures.levelText == NULL) {
+            if (levelTextTexture == NULL) {
                 printf("La texture du texte est NULL\n");
             }
 
             SDL_RenderPresent(renderer);
 
             SDL_Delay(16);
-        } else if (gameState == SETTINGS) {
-            renderSettings(renderer, font, &config, levelsMenuTextures.backText, &backRect);
+        } else if (gameState == PAUSED) {
+            // Render the pause menu
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+
+            // Render the play button
+            SDL_RenderCopy(renderer, playButtonTexture, NULL, &playButtonRect);
+
+            // Render the back to menu button
+            SDL_RenderCopy(renderer, backToMenuButtonTexture, NULL, &backToMenuButtonRect);
+
+            SDL_RenderPresent(renderer);
+        } else if (gameState == UPLOAD_LEVEL) {
+            // Render the upload level menu
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+
+            // Render the upload instructions
+            renderText(renderer, font, "Create your own level!", textColor, 100, 100);
+            renderText(renderer, font, "Download the format file below:", textColor, 100, 150);
+            renderText(renderer, font, "format.txt", textColor, 100, 200);
+            renderText(renderer, font, "and create your level as you like!", textColor, 100, 250);
+            renderText(renderer, font, "Replace the zeros by:", textColor, 100, 300);
+            renderText(renderer, font, "- 6 for checkpoint", textColor, 100, 350);
+            renderText(renderer, font, "- 7 for solid blocks", textColor, 100, 400);
+            renderText(renderer, font, "- 8 for spikes", textColor, 100, 450);
+            renderText(renderer, font, "- 9 for finish line", textColor, 100, 500);
+
+            // Render the upload file button
+            SDL_RenderCopy(renderer, uploadFileButtonTexture, NULL, &uploadFileButtonRect);
+
+            SDL_RenderPresent(renderer);
         }
     }
 
@@ -697,6 +788,12 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(textures.lamp);
     SDL_DestroyTexture(textures.grass);
     SDL_DestroyTexture(textures.levelText);
+    SDL_DestroyTexture(levelTextTexture); // Détruire la texture du texte du niveau
+    SDL_DestroyTexture(pauseButtonTexture); // Détruire la texture du bouton de pause
+    SDL_DestroyTexture(playButtonTexture); // Détruire la texture du bouton de reprise
+    SDL_DestroyTexture(backToMenuButtonTexture); // Détruire la texture du bouton de retour au menu
+    SDL_DestroyTexture(uploadLevelButtonTexture); // Détruire la texture du bouton d'upload de niveau
+    SDL_DestroyTexture(uploadFileButtonTexture); // Détruire la texture du bouton d'upload de fichier
     SDL_DestroyTexture(levelsMenuTextures.level1Text);
     SDL_DestroyTexture(levelsMenuTextures.level2Text);
     SDL_DestroyTexture(levelsMenuTextures.backText);
