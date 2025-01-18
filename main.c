@@ -5,10 +5,13 @@
 #include <SDL_image.h>
 #include <SDL_ttf.h>
 #include <string.h>
+#include <ctype.h> // Include this header for isalnum
+#include <dirent.h> // Include this header for directory operations
 
 #define TILE_SIZE 16
 #define LEVEL_WIDTH 80   
 #define LEVEL_HEIGHT 50  
+#define MAX_LEVELS 100
 
 typedef struct {
     int volume;
@@ -47,13 +50,19 @@ typedef struct {
     SDL_Texture* messageText;
 } GameTextures;
 
+typedef struct {
+    SDL_Texture* run[8];
+    SDL_Texture* jump;
+    SDL_Texture* idle;
+} PlayerTextures;
+
 typedef enum {
     MENU,
     LEVELS,
     SETTINGS,
     PLAYING,
     PAUSED, // Add new game state
-    UPLOAD_LEVEL, // Add new game state
+    CREATE_LEVEL, // Add new game state
     EXIT
 } GameState;
 
@@ -65,9 +74,10 @@ typedef struct {
 } MenuTextures;
 
 typedef struct {
-    SDL_Texture* level1Text;
-    SDL_Texture* level2Text;
+    SDL_Texture* levelTexts[MAX_LEVELS];
+    SDL_Texture* createLevelText; // Add new texture for create level
     SDL_Texture* backText;
+    int levelCount;
 } LevelsMenuTextures;
 
 GameConfig loadConfig(const char *filePath) {
@@ -187,6 +197,22 @@ void renderText(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Co
     }
 }
 
+void renderTextWithBackground(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Color textColor, SDL_Color bgColor, int x, int y) {
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, text, textColor);
+    if (!textSurface) {
+        return;
+    }
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    int textWidth, textHeight;
+    SDL_QueryTexture(textTexture, NULL, NULL, &textWidth, &textHeight);
+    SDL_Rect textRect = {x, y, textWidth, textHeight};
+    SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+    SDL_RenderFillRect(renderer, &textRect);
+    SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+    SDL_DestroyTexture(textTexture);
+    SDL_FreeSurface(textSurface);
+}
+
 int isMouseOverButton(int mouseX, int mouseY, SDL_Rect buttonRect) {
     return mouseX >= buttonRect.x && mouseX <= buttonRect.x + buttonRect.w &&
            mouseY >= buttonRect.y && mouseY <= buttonRect.y + buttonRect.h;
@@ -217,22 +243,24 @@ void renderMenu(SDL_Renderer* renderer, MenuTextures* menuTextures, SDL_Rect* le
     SDL_RenderPresent(renderer);
 }
 
-void renderLevelsMenu(SDL_Renderer* renderer, LevelsMenuTextures* levelsMenuTextures, SDL_Rect* level1Rect, SDL_Rect* level2Rect, SDL_Rect* backRect) {
+void renderLevelsMenu(SDL_Renderer* renderer, LevelsMenuTextures* levelsMenuTextures, SDL_Rect* levelRects, SDL_Rect* createLevelRect, SDL_Rect* backRect) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
     int textWidth, textHeight;
 
-    SDL_QueryTexture(levelsMenuTextures->level1Text, NULL, NULL, &textWidth, &textHeight);
-    *level1Rect = (SDL_Rect){350, 200, textWidth, textHeight};
-    SDL_RenderCopy(renderer, levelsMenuTextures->level1Text, NULL, level1Rect);
+    for (int i = 0; i < levelsMenuTextures->levelCount; i++) {
+        SDL_QueryTexture(levelsMenuTextures->levelTexts[i], NULL, NULL, &textWidth, &textHeight);
+        levelRects[i] = (SDL_Rect){350, 200 + i * 50, textWidth, textHeight};
+        SDL_RenderCopy(renderer, levelsMenuTextures->levelTexts[i], NULL, &levelRects[i]);
+    }
 
-    SDL_QueryTexture(levelsMenuTextures->level2Text, NULL, NULL, &textWidth, &textHeight);
-    *level2Rect = (SDL_Rect){350, 300, textWidth, textHeight};
-    SDL_RenderCopy(renderer, levelsMenuTextures->level2Text, NULL, level2Rect);
+    SDL_QueryTexture(levelsMenuTextures->createLevelText, NULL, NULL, &textWidth, &textHeight); // Add new create level text
+    *createLevelRect = (SDL_Rect){350, 200 + levelsMenuTextures->levelCount * 50, textWidth, textHeight};
+    SDL_RenderCopy(renderer, levelsMenuTextures->createLevelText, NULL, createLevelRect);
 
     SDL_QueryTexture(levelsMenuTextures->backText, NULL, NULL, &textWidth, &textHeight);
-    *backRect = (SDL_Rect){350, 400, textWidth, textHeight};
+    *backRect = (SDL_Rect){350, 200 + (levelsMenuTextures->levelCount + 1) * 50, textWidth, textHeight};
     SDL_RenderCopy(renderer, levelsMenuTextures->backText, NULL, backRect);
 
     SDL_RenderPresent(renderer);
@@ -271,6 +299,52 @@ void renderSettings(SDL_Renderer* renderer, TTF_Font* font, GameConfig* config, 
     SDL_RenderPresent(renderer);
 }
 
+void renderCreateLevel(SDL_Renderer* renderer, int level[LEVEL_HEIGHT][LEVEL_WIDTH], SDL_Texture* saveText, SDL_Rect* saveRect, int cursorX, int cursorY, SDL_Texture* backToMenuText, SDL_Rect* backToMenuRect, TTF_Font* font, GameConfig* config) {
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // White background
+    SDL_RenderClear(renderer);
+
+    for (int y = 0; y < LEVEL_HEIGHT; y++) {
+        for (int x = 0; x < LEVEL_WIDTH; x++) {
+            SDL_Rect destRect = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+            if (x == cursorX && y == cursorY) {
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black for cursor
+            } else if (level[y][x] == 7) {
+                SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255); // Brown for solid blocks
+            } else if (level[y][x] == 8) {
+                SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Red for spikes
+            } else if (level[y][x] == 9) {
+                SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255); // Green for finish line
+            } else if (level[y][x] == 6) {
+                SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255); // Blue for checkpoint
+            } else {
+                SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Light grey for empty space
+            }
+            SDL_RenderFillRect(renderer, &destRect);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black border
+            SDL_RenderDrawRect(renderer, &destRect);
+        }
+    }
+
+    SDL_QueryTexture(saveText, NULL, NULL, &saveRect->w, &saveRect->h);
+    saveRect->x = (config->width - saveRect->w) / 2; // Center horizontally
+    saveRect->y = 10; // Top of the window
+    SDL_Color highlightColor = {255, 255, 0, 255}; // Yellow highlight
+    SDL_Color blackColor = {0, 0, 0, 255};
+    renderTextWithBackground(renderer, font, "Save", blackColor, highlightColor, saveRect->x, saveRect->y);
+    SDL_RenderCopy(renderer, saveText, NULL, saveRect);
+
+    SDL_QueryTexture(backToMenuText, NULL, NULL, &backToMenuRect->w, &backToMenuRect->h);
+    renderTextWithBackground(renderer, font, "Back to Menu", blackColor, highlightColor, backToMenuRect->x, backToMenuRect->y);
+    SDL_RenderCopy(renderer, backToMenuText, NULL, backToMenuRect);
+
+    renderTextWithBackground(renderer, font, "- 6 for checkpoint", blackColor, highlightColor, 10, 10);
+    renderTextWithBackground(renderer, font, "- 7 for solid blocks", blackColor, highlightColor, 10, 40);
+    renderTextWithBackground(renderer, font, "- 8 for spikes", blackColor, highlightColor, 10, 70);
+    renderTextWithBackground(renderer, font, "- 9 for finish line", blackColor, highlightColor, 10, 100);
+
+    SDL_RenderPresent(renderer);
+}
+
 void saveConfig(const char *filePath, GameConfig *config) {
     cJSON *json = cJSON_CreateObject();
     cJSON_AddNumberToObject(json, "volume", config->volume);
@@ -292,6 +366,78 @@ void saveConfig(const char *filePath, GameConfig *config) {
 
     cJSON_Delete(json);
     free(jsonString);
+}
+
+void saveLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
+    FILE *file = fopen(filePath, "w");
+    if (file == NULL) {
+        perror("Erreur lors de l'ouverture du fichier de niveau pour écriture");
+        exit(1);
+    }
+
+    for (int y = 0; y < LEVEL_HEIGHT; y++) {
+        for (int x = 0; x < LEVEL_WIDTH; x++) {
+            fprintf(file, "%d ", level[y][x]);
+        }
+        fprintf(file, "\n");
+    }
+
+    fclose(file);
+}
+
+void saveLevelWithFilename(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
+    char fullPath[256];
+    snprintf(fullPath, sizeof(fullPath), "levels/%s.txt", filePath);
+
+    FILE *file = fopen(fullPath, "w");
+    if (file == NULL) {
+        perror("Erreur lors de l'ouverture du fichier de niveau pour écriture");
+        exit(1);
+    }
+
+    for (int y = 0; y < LEVEL_HEIGHT; y++) {
+        for (int x = 0; x < LEVEL_WIDTH; x++) {
+            fprintf(file, "%d ", level[y][x]);
+        }
+        fprintf(file, "\n");
+    }
+
+    fclose(file);
+}
+
+int isValidFilename(const char *filename) {
+    for (int i = 0; filename[i] != '\0'; i++) {
+        if (!(isalnum(filename[i]) || filename[i] == '_' || filename[i] == '-')) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+void loadLevelsFromDirectory(const char *directory, LevelsMenuTextures *levelsMenuTextures, TTF_Font *font, SDL_Renderer *renderer, char levelNames[MAX_LEVELS][256]) {
+    DIR *dir;
+    struct dirent *ent;
+    SDL_Color textColor = {255, 255, 255, 255};
+    levelsMenuTextures->levelCount = 0;
+
+    if ((dir = opendir(directory)) != NULL) {
+        while ((ent = readdir(dir)) != NULL) {
+            if (strstr(ent->d_name, ".txt") != NULL) {
+                char levelName[256];
+                snprintf(levelName, sizeof(levelName), "%s", ent->d_name);
+                levelName[strlen(levelName) - 4] = '\0'; // Remove the ".txt" extension
+                levelsMenuTextures->levelTexts[levelsMenuTextures->levelCount] = createTextTexture(font, levelName, textColor, renderer);
+                snprintf(levelNames[levelsMenuTextures->levelCount], sizeof(levelNames[levelsMenuTextures->levelCount]), "levels/%s", ent->d_name);
+                levelsMenuTextures->levelCount++;
+                if (levelsMenuTextures->levelCount >= MAX_LEVELS) {
+                    break;
+                }
+            }
+        }
+        closedir(dir);
+    } else {
+        perror("Erreur lors de l'ouverture du répertoire des niveaux");
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -339,6 +485,8 @@ int main(int argc, char *argv[]) {
     GameTextures textures;
     
     SDL_Color textColor = {255, 255, 255, 255};
+    SDL_Color blackColor = {0, 0, 0, 255}; // Define black color
+    SDL_Color highlightColor = {255, 255, 0, 255}; // Yellow highlight
     SDL_Surface* textSurface = TTF_RenderText_Solid(font, "First Level", textColor);
 
     if (!textSurface) {
@@ -351,14 +499,12 @@ int main(int argc, char *argv[]) {
     textures.background1 = loadTexture("oak_woods_v1.0/background/background_layer_1.png", renderer);
     textures.background2 = loadTexture("oak_woods_v1.0/background/background_layer_2.png", renderer);
     textures.background3 = loadTexture("oak_woods_v1.0/background/background_layer_3.png", renderer);
-    textures.player = loadTexture("oak_woods_v1.0/character/malo.png", renderer);
     textures.ground = loadTexture("oak_woods_v1.0/decorations/sol1.png", renderer);
     textures.rock = loadTexture("oak_woods_v1.0/decorations/rock_3.png", renderer);
     textures.lamp = loadTexture("oak_woods_v1.0/decorations/lamp.png", renderer);
     textures.grass = loadTexture("oak_woods_v1.0/decorations/grass_2.png", renderer);
 
-    if (!textures.background1 || !textures.background2 || !textures.background3 || 
-        !textures.player || !textures.ground || !textures.rock || !textures.lamp || 
+    if (!textures.background1 || !textures.background2 || !textures.background3 || !textures.ground || !textures.rock || !textures.lamp || 
         !textures.grass || !textures.levelText) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -378,14 +524,26 @@ int main(int argc, char *argv[]) {
     }
 
     LevelsMenuTextures levelsMenuTextures;
-    levelsMenuTextures.level1Text = createTextTexture(font, "Level 1", textColor, renderer);
-    levelsMenuTextures.level2Text = createTextTexture(font, "Level 2", textColor, renderer);
+    levelsMenuTextures.createLevelText = createTextTexture(font, "Create your own level", textColor, renderer); // Add new create level text
     levelsMenuTextures.backText = createTextTexture(font, "Back", textColor, renderer);
 
-    if (!levelsMenuTextures.level1Text || !levelsMenuTextures.level2Text || !levelsMenuTextures.backText) {
+    if (!levelsMenuTextures.createLevelText || !levelsMenuTextures.backText) {
         printf("Erreur lors de la création des textures de texte du menu des niveaux\n");
         return 1;
     }
+
+    PlayerTextures playerTextures;
+        for (int i = 0; i < 8; i++) {
+            char filePath[256];
+            snprintf(filePath, sizeof(filePath), "player_assets/run/run-frame%d.png", i + 1);
+            playerTextures.run[i] = loadTexture(filePath, renderer);
+        }
+        playerTextures.jump = loadTexture("player_assets/jump/jump-frame1.png", renderer);
+        playerTextures.idle = loadTexture("player_assets/idle/debout-frame1.png", renderer);
+
+    // Store level names for later use
+    char levelNames[MAX_LEVELS][256]; // Array to store level names
+    loadLevelsFromDirectory("levels", &levelsMenuTextures, font, renderer, levelNames);
 
     GameState gameState = MENU;
 
@@ -402,7 +560,7 @@ int main(int argc, char *argv[]) {
     int playerY = spawn.y;
     int velocityY = 0;
     int canJump = 2;
-    int facingRight = 1;
+    int facingRight = 0;
     
 
     int keys[SDL_NUM_SCANCODES] = {0};
@@ -411,7 +569,10 @@ int main(int argc, char *argv[]) {
     int running = 1;
     
     SDL_Rect levelsRect, settingsRect, exitRect;
-    SDL_Rect level1Rect, level2Rect, backRect;
+    SDL_Rect levelRects[MAX_LEVELS], createLevelRect, backRect;
+    SDL_Rect saveRect; // Remove redeclaration of createLevelRect
+    SDL_Texture* saveText = createTextTexture(font, "Save", blackColor, renderer); // Change color to black
+    int customLevel[LEVEL_HEIGHT][LEVEL_WIDTH] = {0}; // Initialize custom level matrix
 
     SDL_Rect pauseButtonRect = {config.width - 50, 10, 40, 40}; // Position and size of the pause button
     SDL_Rect playButtonRect = {config.width / 2 - 50, config.height / 2 - 20, 100, 40}; // Position and size of the play button
@@ -421,14 +582,20 @@ int main(int argc, char *argv[]) {
     SDL_Texture* playButtonTexture = createTextTexture(font, "Play", textColor, renderer);
     SDL_Texture* backToMenuButtonTexture = createTextTexture(font, "Back to Menu", textColor, renderer);
 
-    SDL_Rect uploadLevelButtonRect = {350, 500, 200, 50}; // Position and size of the upload level button
-    SDL_Rect uploadFileButtonRect = {350, 400, 200, 50}; // Position and size of the upload file button
-
-    SDL_Texture* uploadLevelButtonTexture = createTextTexture(font, "Upload your own level!", textColor, renderer);
-    SDL_Texture* uploadFileButtonTexture = createTextTexture(font, "Upload your file here", textColor, renderer);
-
     char levelText[256] = "First Level"; // Variable pour stocker le texte du niveau
     SDL_Texture* levelTextTexture = NULL; // Texture pour le texte du niveau
+
+    int cursorX = 0, cursorY = LEVEL_HEIGHT - 1; // Cursor position for keyboard input, start at bottom left
+
+    SDL_Rect backToMenuRect = {config.width - 150, 10, 140, 40}; // Position and size of the back to menu button
+    SDL_Texture* backToMenuText = createTextTexture(font, "Back to Menu", blackColor, renderer); // Change color to black
+
+    char filename[256] = "";
+    int enteringFilename = 0;
+
+    int frame = 0;
+    int frameDelay = 100; // Delay between frames in milliseconds
+    Uint32 frameStart = SDL_GetTicks();
 
     while (running) {
         while (SDL_PollEvent(&event)) {
@@ -454,8 +621,42 @@ int main(int argc, char *argv[]) {
                     // ...existing code for settings...
                 } else if (gameState == PAUSED) {
                     // Handle key events in paused state if needed
-                } else if (gameState == UPLOAD_LEVEL) {
-                    // Handle key events in upload level state if needed
+                } else if (gameState == CREATE_LEVEL) {
+                    if (enteringFilename) {
+                        if (event.key.keysym.sym == SDLK_RETURN) {
+                            if (isValidFilename(filename)) {
+                                saveLevelWithFilename(filename, customLevel);
+                                loadLevelsFromDirectory("levels", &levelsMenuTextures, font, renderer, levelNames); // Refresh levels menu
+                                gameState = LEVELS; // Return to LEVELS state
+                            } else {
+                                printf("Invalid filename. Use only alphanumeric characters, underscores, and hyphens.\n");
+                            }
+                            enteringFilename = 0;
+                        } else if (event.key.keysym.sym == SDLK_BACKSPACE && strlen(filename) > 0) {
+                            filename[strlen(filename) - 1] = '\0';
+                        } else if (event.key.keysym.sym >= SDLK_a && event.key.keysym.sym <= SDLK_z) {
+                            char c = (char)event.key.keysym.sym;
+                            strncat(filename, &c, 1);
+                        }
+                    } else {
+                        if (event.key.keysym.sym == SDLK_UP && cursorY > 0) {
+                            cursorY--;
+                        } else if (event.key.keysym.sym == SDLK_DOWN && cursorY < LEVEL_HEIGHT - 1) {
+                            cursorY++;
+                        } else if (event.key.keysym.sym == SDLK_LEFT && cursorX > 0) {
+                            cursorX--;
+                        } else if (event.key.keysym.sym == SDLK_RIGHT && cursorX < LEVEL_WIDTH - 1) {
+                            cursorX++;
+                        } else if (event.key.keysym.sym == SDLK_6) {
+                            customLevel[cursorY][cursorX] = (customLevel[cursorY][cursorX] == 6) ? 0 : 6; // Toggle checkpoint
+                        } else if (event.key.keysym.sym == SDLK_7) {
+                            customLevel[cursorY][cursorX] = (customLevel[cursorY][cursorX] == 7) ? 0 : 7; // Toggle solid block
+                        } else if (event.key.keysym.sym == SDLK_8) {
+                            customLevel[cursorY][cursorX] = (customLevel[cursorY][cursorX] == 8) ? 0 : 8; // Toggle spike
+                        } else if (event.key.keysym.sym == SDLK_9) {
+                            customLevel[cursorY][cursorX] = (customLevel[cursorY][cursorX] == 9) ? 0 : 9; // Toggle finish line
+                        }
+                    }
                 }
             } else if (event.type == SDL_KEYUP) {
                 keys[event.key.keysym.scancode] = 0;
@@ -471,26 +672,22 @@ int main(int argc, char *argv[]) {
                         running = 0;
                     }
                 } else if (gameState == LEVELS) {
-                    if (isMouseOverButton(mouseX, mouseY, level1Rect)) {
-                        loadLevel("levels/level1.txt", level);
-                        gameState = PLAYING; // Change to PLAYING state
-                        strcpy(levelText, "First Level"); // Mettre à jour le texte du niveau
-                        if (levelTextTexture) {
-                            SDL_DestroyTexture(levelTextTexture);
+                    for (int i = 0; i < levelsMenuTextures.levelCount; i++) {
+                        if (isMouseOverButton(mouseX, mouseY, levelRects[i])) {
+                            loadLevel(levelNames[i], level);
+                            gameState = PLAYING; // Change to PLAYING state
+                            strcpy(levelText, levelNames[i]); // Mettre à jour le texte du niveau
+                            if (levelTextTexture) {
+                                SDL_DestroyTexture(levelTextTexture);
+                            }
+                            levelTextTexture = createTextTexture(font, levelText, textColor, renderer);
+                            break;
                         }
-                        levelTextTexture = createTextTexture(font, levelText, textColor, renderer);
-                    } else if (isMouseOverButton(mouseX, mouseY, level2Rect)) {
-                        loadLevel("levels/level2.txt", level);
-                        gameState = PLAYING; // Change to PLAYING state
-                        strcpy(levelText, "Second Level"); // Mettre à jour le texte du niveau
-                        if (levelTextTexture) {
-                            SDL_DestroyTexture(levelTextTexture);
-                        }
-                        levelTextTexture = createTextTexture(font, levelText, textColor, renderer);
+                    }
+                    if (isMouseOverButton(mouseX, mouseY, createLevelRect)) {
+                        gameState = CREATE_LEVEL; // Change to CREATE_LEVEL state
                     } else if (isMouseOverButton(mouseX, mouseY, backRect)) {
                         gameState = MENU;
-                    } else if (isMouseOverButton(mouseX, mouseY, uploadLevelButtonRect)) {
-                        gameState = UPLOAD_LEVEL; // Change to UPLOAD_LEVEL state
                     }
                 } else if (gameState == SETTINGS) {
                     if (isMouseOverButton(mouseX, mouseY, backRect)) {
@@ -504,13 +701,23 @@ int main(int argc, char *argv[]) {
                     if (isMouseOverButton(mouseX, mouseY, playButtonRect)) {
                         gameState = PLAYING; // Change back to PLAYING state
                     } else if (isMouseOverButton(mouseX, mouseY, backToMenuButtonRect)) {
+                        // Reset player position
+                        playerX = spawn.x;
+                        playerY = spawn.y;
+                        velocityY = 0;
+                        canJump = 2;
                         gameState = MENU; // Change to MENU state
                     }
-                } else if (gameState == UPLOAD_LEVEL) {
-                    if (isMouseOverButton(mouseX, mouseY, uploadFileButtonRect)) {
-                        // Handle file upload logic here
-                        // For simplicity, we will just print a message
-                        printf("File upload button clicked\n");
+                } else if (gameState == CREATE_LEVEL) {
+                    int tileX = mouseX / TILE_SIZE;
+                    int tileY = mouseY / TILE_SIZE;
+                    if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
+                        customLevel[tileY][tileX] = (customLevel[tileY][tileX] + 1) % 10; // Cycle through tile types
+                    }
+                    if (isMouseOverButton(mouseX, mouseY, saveRect)) {
+                        enteringFilename = 1; // Start entering filename
+                    } else if (isMouseOverButton(mouseX, mouseY, backToMenuRect)) {
+                        gameState = MENU; // Return to MENU state
                     }
                 }
             } 
@@ -519,22 +726,18 @@ int main(int argc, char *argv[]) {
         if (gameState == MENU) {
             renderMenu(renderer, &menuTextures, &levelsRect, &settingsRect, &exitRect);
         } else if (gameState == LEVELS) {
-            renderLevelsMenu(renderer, &levelsMenuTextures, &level1Rect, &level2Rect, &backRect);
-            // Render the upload level button
-            SDL_RenderCopy(renderer, uploadLevelButtonTexture, NULL, &uploadLevelButtonRect);
+            renderLevelsMenu(renderer, &levelsMenuTextures, levelRects, &createLevelRect, &backRect);
             SDL_RenderPresent(renderer);
         } else if (gameState == SETTINGS) {
             renderSettings(renderer, font, &config, levelsMenuTextures.backText, &backRect);
-        } else if (gameState == PLAYING) { // Add rendering logic for PLAYING state
-            // ...existing code for game rendering...
-            // Move the game rendering logic here
+        } else if (gameState == PLAYING) { 
             if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)]) {
                 playerX -= TILE_SIZE / 4;
-                facingRight = 1;
+                facingRight = 0;
             }
             if (keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
                 playerX += TILE_SIZE / 4;
-                facingRight = 0;
+                facingRight = 1;
             }
 
             if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
@@ -701,6 +904,17 @@ int main(int argc, char *argv[]) {
                 }
             }
 
+            SDL_Texture* currentTexture = playerTextures.idle;
+            if (keys[SDL_GetScancodeFromKey(config.moveLeftKey)] || keys[SDL_GetScancodeFromKey(config.moveRightKey)]) {
+                if (SDL_GetTicks() - frameStart >= frameDelay) {
+                    frame = (frame + 1) % 8;
+                    frameStart = SDL_GetTicks();
+                }
+                currentTexture = playerTextures.run[frame];
+            } else if (keys[SDL_GetScancodeFromKey(config.jumpKey)] && canJump > 0) {
+                currentTexture = playerTextures.jump;
+            }
+
             SDL_Rect playerRect = {
                 playerX,
                 playerY,
@@ -709,9 +923,9 @@ int main(int argc, char *argv[]) {
             };
 
             if (facingRight) {
-                SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_NONE);
+                SDL_RenderCopyEx(renderer, currentTexture, NULL, &playerRect, 0, NULL, SDL_FLIP_NONE);
             } else {
-                SDL_RenderCopyEx(renderer, textures.player, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
+                SDL_RenderCopyEx(renderer, currentTexture, NULL, &playerRect, 0, NULL, SDL_FLIP_HORIZONTAL);
             }
 
             // Dessiner le bouton de pause
@@ -742,7 +956,7 @@ int main(int argc, char *argv[]) {
             SDL_Delay(16);
         } else if (gameState == PAUSED) {
             // Render the pause menu
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 120);
             SDL_RenderClear(renderer);
 
             // Render the play button
@@ -752,26 +966,17 @@ int main(int argc, char *argv[]) {
             SDL_RenderCopy(renderer, backToMenuButtonTexture, NULL, &backToMenuButtonRect);
 
             SDL_RenderPresent(renderer);
-        } else if (gameState == UPLOAD_LEVEL) {
-            // Render the upload level menu
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-            SDL_RenderClear(renderer);
-
-            // Render the upload instructions
-            renderText(renderer, font, "Create your own level!", textColor, 100, 100);
-            renderText(renderer, font, "Download the format file below:", textColor, 100, 150);
-            renderText(renderer, font, "format.txt", textColor, 100, 200);
-            renderText(renderer, font, "and create your level as you like!", textColor, 100, 250);
-            renderText(renderer, font, "Replace the zeros by:", textColor, 100, 300);
-            renderText(renderer, font, "- 6 for checkpoint", textColor, 100, 350);
-            renderText(renderer, font, "- 7 for solid blocks", textColor, 100, 400);
-            renderText(renderer, font, "- 8 for spikes", textColor, 100, 450);
-            renderText(renderer, font, "- 9 for finish line", textColor, 100, 500);
-
-            // Render the upload file button
-            SDL_RenderCopy(renderer, uploadFileButtonTexture, NULL, &uploadFileButtonRect);
-
-            SDL_RenderPresent(renderer);
+        } else if (gameState == CREATE_LEVEL) {
+            renderCreateLevel(renderer, customLevel, saveText, &saveRect, cursorX, cursorY, backToMenuText, &backToMenuRect, font, &config);
+            if (enteringFilename) {
+                int textWidth, textHeight;
+                SDL_QueryTexture(saveText, NULL, NULL, &textWidth, &textHeight);
+                int centerX = (config.width - textWidth) / 2;
+                int centerY = (config.height - textHeight) / 2;
+                renderTextWithBackground(renderer, font, "Enter filename: ", blackColor, highlightColor, centerX - 100, centerY);
+                renderTextWithBackground(renderer, font, filename, blackColor, highlightColor, centerX + 100, centerY);
+                SDL_RenderPresent(renderer);
+            }
         }
     }
 
@@ -782,7 +987,6 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(textures.background1);
     SDL_DestroyTexture(textures.background2);
     SDL_DestroyTexture(textures.background3);
-    SDL_DestroyTexture(textures.player);
     SDL_DestroyTexture(textures.ground);
     SDL_DestroyTexture(textures.rock);
     SDL_DestroyTexture(textures.lamp);
@@ -792,11 +996,18 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(pauseButtonTexture); // Détruire la texture du bouton de pause
     SDL_DestroyTexture(playButtonTexture); // Détruire la texture du bouton de reprise
     SDL_DestroyTexture(backToMenuButtonTexture); // Détruire la texture du bouton de retour au menu
-    SDL_DestroyTexture(uploadLevelButtonTexture); // Détruire la texture du bouton d'upload de niveau
-    SDL_DestroyTexture(uploadFileButtonTexture); // Détruire la texture du bouton d'upload de fichier
-    SDL_DestroyTexture(levelsMenuTextures.level1Text);
-    SDL_DestroyTexture(levelsMenuTextures.level2Text);
+    for (int i = 0; i < levelsMenuTextures.levelCount; i++) {
+        SDL_DestroyTexture(levelsMenuTextures.levelTexts[i]);
+    }
+    SDL_DestroyTexture(levelsMenuTextures.createLevelText); // Destroy create level text texture
     SDL_DestroyTexture(levelsMenuTextures.backText);
+    for (int i = 0; i < 8; i++) {
+        SDL_DestroyTexture(playerTextures.run[i]);
+    }
+    SDL_DestroyTexture(saveText); // Destroy save button texture
+    SDL_DestroyTexture(backToMenuText); // Destroy back to menu button texture
+    SDL_DestroyTexture(playerTextures.jump);
+    SDL_DestroyTexture(playerTextures.idle);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
