@@ -52,3 +52,11 @@ void renderTextWithBackground(SDL_Renderer* renderer, TTF_Font* font, const char
     SDL_DestroyTexture(textTexture);
     SDL_FreeSurface(textSurface);
 }
+
+
+void updateTryString(int try, char* tryString) {
+    tryString[3] = (char)(try % 10) + 48;
+    tryString[2] = (char)((try / 10) % 10) + 48;
+    tryString[1] = (char)((try / 100) % 10) + 48;
+    tryString[0] = (char)((try / 1000) % 10) + 48;
+}

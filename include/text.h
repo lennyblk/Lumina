@@ -8,4 +8,5 @@ void renderText(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Co
 void renderTextWithBackground(SDL_Renderer* renderer, TTF_Font* font, const char* text, SDL_Color textColor, SDL_Color bgColor, int x, int y);
 SDL_Texture* loadTexture(const char* filePath, SDL_Renderer* renderer);
 SDL_Texture* createTextTexture(TTF_Font* font, const char* text, SDL_Color color, SDL_Renderer* renderer);
+void updateTryString(int try, char* tryString);
 #endif
