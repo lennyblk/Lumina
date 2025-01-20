@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
-        printf("Erreur lors de l'initialisation de SDL_image : %s\n", IMG_GetError());
+        printf("Erreur lors de l'initialisation de SDL_image : %s\n", SDL_GetError());
         return 1;
     }
 
@@ -305,6 +305,8 @@ int main(int argc, char *argv[]) {
                     if (isMouseOverButton(mouseX, mouseY, createLevelRect)) {
                         gameState = CREATE_LEVEL; 
                     } else if (isMouseOverButton(mouseX, mouseY, backRect)) {
+                        try = 0; // Reset the try counter
+                        updateTryString(try, tryString); // Update the tryString
                         gameState = MENU;
                     }
                 } else if (gameState == SETTINGS) {
@@ -321,11 +323,12 @@ int main(int argc, char *argv[]) {
                     } else if (isMouseOverButton(mouseX, mouseY, backToMenuButtonRect)) {
                         spawn.hasCheckpoint = 0;
                         spawn.isCheckpointActive = 0;
-                        
                         playerX = spawn.x;
                         playerY = spawn.y;
                         velocityY = 0;
                         canJump = 2;
+                        try = 0; // Reset the try counter
+                        updateTryString(try, tryString); // Update the tryString
                         gameState = MENU; 
                     }
                 } else if (gameState == CREATE_LEVEL) {
@@ -337,6 +340,8 @@ int main(int argc, char *argv[]) {
                     if (isMouseOverButton(mouseX, mouseY, saveRect)) {
                         enteringFilename = 1; // entrain de saisir le nom du fichier
                     } else if (isMouseOverButton(mouseX, mouseY, backToMenuRect)) {
+                        try = 0; // Reset the try counter
+                        updateTryString(try, tryString); // Update the tryString
                         gameState = MENU; // retourner au menu
                     }
                 }
@@ -345,9 +350,13 @@ int main(int argc, char *argv[]) {
 
         if (gameState == MENU) {
             renderMenu(renderer, &menuTextures, &levelsRect, &settingsRect, &exitRect);
+            try = 0; // Reset the try counter when entering the main menu
+            updateTryString(try, tryString); // Update the tryString
         } else if (gameState == LEVELS) {
             renderLevelsMenu(renderer, &levelsMenuTextures, levelRects, &createLevelRect, &backRect);
             SDL_RenderPresent(renderer);
+            try = 0; // Reset the try counter when entering the levels menu
+            updateTryString(try, tryString); // Update the tryString
         } else if (gameState == SETTINGS) {
             renderSettings(renderer, font, &config, levelsMenuTextures.backText, &backRect);
         } else if (gameState == PLAYING) { 
@@ -469,6 +478,8 @@ int main(int argc, char *argv[]) {
                 SDL_Delay(2000);
                 playerX = spawn.x;
                 playerY = spawn.y;  
+                try = 0; // Reset the try counter
+                updateTryString(try, tryString); // Update the tryString
                 gameState = MENU;
             }
 
