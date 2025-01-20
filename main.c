@@ -423,8 +423,7 @@ int main(int argc, char *argv[]) {
 
             if (1) { //if (velocityY = 0)
                 while (
-                    checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7) &&
-                    checkCollision4P(playerX, playerY, level,7)
+                    checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7)
                 ) 
                 {
                     playerY--;
@@ -435,8 +434,7 @@ int main(int argc, char *argv[]) {
 
             if (1) { //if (velocityY = 0)
                 while (
-                    checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7) &&
-                    checkCollision4P(playerX + TILE_SIZE - 1, playerY, level,7)
+                    checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7)
                 ) 
                 {
                     playerY--;
