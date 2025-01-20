@@ -443,10 +443,10 @@ int main(int argc, char *argv[]) {
                 SDL_Color redColor = {255, 0, 0, 255};
                 renderText(renderer, font, "GAME OVER", redColor, config.width/2 - 80, config.height/2);
                 try++;
-                tryString[3] = (char)(try%10)+48; // calcul pour les tentative
-                tryString[2] = (char)((try/10)%10)+48;
-                tryString[1] = (char)((try/100)%10)+48;
-                tryString[0] = (char)((try/1000)%10)+48;
+                tryString[3] = (char)(try % 10) + 48; // Convertit le chiffre des unités en caractère
+                tryString[2] = (char)((try / 10) % 10) + 48; // Convertit le chiffre des dizaines en caractère
+                tryString[1] = (char)((try / 100) % 10) + 48; // Convertit le chiffre des centaines en caractère
+                tryString[0] = (char)((try / 1000) % 10) + 48; // Convertit le chiffre des milliers en caractère
                 SDL_RenderPresent(renderer);
                 
 
@@ -606,7 +606,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-                                                                                // Libération de la mémoire
+    // Libération de la mémoire
     SDL_DestroyTexture(menuTextures.titleText);
     SDL_DestroyTexture(menuTextures.levelsText);
     SDL_DestroyTexture(menuTextures.settingsText);
