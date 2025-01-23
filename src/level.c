@@ -24,12 +24,12 @@ void loadLevel(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {
 
 void loadLevelsFromDirectory(const char *directory, LevelsMenuTextures *levelsMenuTextures, TTF_Font *font, SDL_Renderer *renderer, char levelNames[MAX_LEVELS][256]) {
     DIR *dir;
-    struct dirent *ent;
+    struct dirent *ent;    // on fait un pointeur de structure car la fonction readdir() renvoie un pointeur de structure
     SDL_Color textColor = {255, 255, 255, 255};
     levelsMenuTextures->levelCount = 0;
 
     if ((dir = opendir(directory)) != NULL) {
-        while ((ent = readdir(dir)) != NULL) {
+        while ((ent = readdir(dir)) != NULL) {      // chaque iteration, lit un fichier du répertoire et le met dans la structure dirent -> d_name
             if (strstr(ent->d_name, ".txt") != NULL) {
                 char levelName[256];
                 snprintf(levelName, sizeof(levelName), "%s", ent->d_name);

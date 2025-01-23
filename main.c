@@ -10,7 +10,6 @@
 #include "include/config.h"
 #include "include/game.h"
 #include "include/menu.h"
-#include "src/config.c"
 #include "src/game.c" 
 #include "src/level.c"
 #include "src/collision.c"
@@ -56,7 +55,6 @@ int main(int argc, char *argv[]) {
     int try = 0;
     char tryString[] ={'0','0','0','0',' ', ':', ' ','t','e','n','t','a','t','i','v','e','s','\0'};
     int level[LEVEL_HEIGHT][LEVEL_WIDTH];
-    loadLevel("levels/level1.txt", level);
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("Erreur lors de l'initialisation de SDL : %s\n", SDL_GetError());
@@ -98,7 +96,7 @@ int main(int argc, char *argv[]) {
     SDL_Color textColor = {255, 255, 255, 255};
     SDL_Color blackColor = {0, 0, 0, 255}; 
     SDL_Color highlightColor = {255, 255, 0, 255}; 
-    SDL_Surface* textSurface = TTF_RenderText_Solid(font, "First Level", textColor);
+    SDL_Surface* textSurface = TTF_RenderText_Solid(font, "Init Level", textColor);
 
     if (!textSurface) {
         printf("Erreur lors de la création du texte : %s\n", TTF_GetError());
@@ -156,11 +154,15 @@ int main(int argc, char *argv[]) {
     }
 
     PlayerTextures playerTextures;
-        for (int i = 0; i < 8; i++) {
-            char filePath[256];
-            snprintf(filePath, sizeof(filePath), "player_assets/run/run-frame%d.png", i + 1);
-            playerTextures.run[i] = loadTexture(filePath, renderer);
-        }
+        playerTextures.run[0] = loadTexture("player_assets/run/run-frame1.png", renderer);
+        playerTextures.run[1] = loadTexture("player_assets/run/run-frame2.png", renderer);
+        playerTextures.run[2] = loadTexture("player_assets/run/run-frame3.png", renderer);
+        playerTextures.run[3] = loadTexture("player_assets/run/run-frame4.png", renderer);
+        playerTextures.run[4] = loadTexture("player_assets/run/run-frame5.png", renderer);
+        playerTextures.run[5] = loadTexture("player_assets/run/run-frame6.png", renderer);
+        playerTextures.run[6] = loadTexture("player_assets/run/run-frame7.png", renderer);
+        playerTextures.run[7] = loadTexture("player_assets/run/run-frame8.png", renderer);
+
         playerTextures.jump = loadTexture("player_assets/jump/jump-frame1.png", renderer);
         playerTextures.idle = loadTexture("player_assets/idle/debout-frame1.png", renderer);
 
@@ -181,7 +183,7 @@ int main(int argc, char *argv[]) {
     int playerX = spawn.x;
     int playerY = spawn.y;
     int velocityY = 0;
-    int canJump = 2;
+    int canJump = 1;
     int facingRight = 0;
     
 
@@ -191,8 +193,8 @@ int main(int argc, char *argv[]) {
         
     SDL_Rect levelsRect, settingsRect, exitRect;
     SDL_Rect levelRects[MAX_LEVELS], createLevelRect, backRect;
-    SDL_Rect saveRect; // Supprimer la redéclaration de createLevelRect
-    SDL_Texture* saveText = createTextTexture(font, "Save", blackColor, renderer); // Changer la couleur en noir
+    SDL_Rect saveRect; 
+    SDL_Texture* saveText = createTextTexture(font, "Save", blackColor, renderer);
     int customLevel[LEVEL_HEIGHT][LEVEL_WIDTH] = {0}; // Initialiser une matrice de niveau personnalisé
 
     SDL_Rect pauseButtonRect = {config.width - 50, 10, 40, 40}; // Position et taille du bouton pause
@@ -201,15 +203,15 @@ int main(int argc, char *argv[]) {
 
     SDL_Texture* pauseButtonTexture = createTextTexture(font, "Pause", textColor, renderer);
     SDL_Texture* playButtonTexture = createTextTexture(font, "Play", textColor, renderer);
-    SDL_Texture* backToMenuButtonTexture = createTextTexture(font, "Back to Menu", textColor, renderer);
+    SDL_Texture* backToMenuButtonTexture = createTextTexture(font, "Menu", textColor, renderer);
 
-    char levelText[256] = "First Level"; // Variable pour stocker le texte du niveau
+    char levelText[256]; // Variable pour stocker le texte du niveau
     SDL_Texture* levelTextTexture = NULL; // Texture pour le texte du niveau
 
     int cursorX = 0, cursorY = LEVEL_HEIGHT - 1; // Position du curseur pour l'entrée clavier, commencer en bas à gauche
 
     SDL_Rect backToMenuRect = {config.width - 150, 10, 140, 40}; // Position et taille du bouton retour au menu
-    SDL_Texture* backToMenuText = createTextTexture(font, "Back to Menu", blackColor, renderer); // Changer la couleur en noir
+    SDL_Texture* backToMenuText = createTextTexture(font, "Menu", blackColor, renderer); // Changer la couleur en noir
 
     char filename[256] = "";
     int enteringFilename = 0;
@@ -239,7 +241,7 @@ int main(int argc, char *argv[]) {
                 
                 } else if (gameState == CREATE_LEVEL) {
                     if (enteringFilename) {
-                        if (event.key.keysym.sym == SDLK_RETURN) {
+                        if (event.key.keysym.sym == SDLK_RETURN) { // quand on appuie sur entrée pour sauvegarder
                             if (isValidFilename(filename)) {
                                 saveLevelWithFilename(filename, customLevel);
                                 loadLevelsFromDirectory("levels", &levelsMenuTextures, font, renderer, levelNames); // levels menu
@@ -332,31 +334,26 @@ int main(int argc, char *argv[]) {
                         gameState = MENU; 
                     }
                 } else if (gameState == CREATE_LEVEL) {
-                    int tileX = mouseX / TILE_SIZE;
-                    int tileY = mouseY / TILE_SIZE;
-                    if (tileX >= 0 && tileX < LEVEL_WIDTH && tileY >= 0 && tileY < LEVEL_HEIGHT) {
-                        customLevel[tileY][tileX] = (customLevel[tileY][tileX] + 1) % 10; // cycle a travers les types de tuiles
-                    }
-                    if (isMouseOverButton(mouseX, mouseY, saveRect)) {
-                        enteringFilename = 1; // entrain de saisir le nom du fichier
-                    } else if (isMouseOverButton(mouseX, mouseY, backToMenuRect)) {
-                        try = 0; // Reset the try counter
-                        updateTryString(try, tryString); // Update the tryString
-                        gameState = MENU; // retourner au menu
-                    }
+                if (isMouseOverButton(mouseX, mouseY, saveRect)) {
+                    enteringFilename = 1; // entrain de saisir le nom du fichier
+                } else if (isMouseOverButton(mouseX, mouseY, backToMenuRect)) {
+                    try = 0; 
+                    updateTryString(try, tryString); 
+                    gameState = MENU; // retourner au menu
                 }
-            } 
+            }
+        } 
         }
 
         if (gameState == MENU) {
             renderMenu(renderer, &menuTextures, &levelsRect, &settingsRect, &exitRect);
-            try = 0; // Reset the try counter when entering the main menu
-            updateTryString(try, tryString); // Update the tryString
+            try = 0; 
+            updateTryString(try, tryString); 
         } else if (gameState == LEVELS) {
             renderLevelsMenu(renderer, &levelsMenuTextures, levelRects, &createLevelRect, &backRect);
             SDL_RenderPresent(renderer);
-            try = 0; // Reset the try counter when entering the levels menu
-            updateTryString(try, tryString); // Update the tryString
+            try = 0; 
+            updateTryString(try, tryString); 
         } else if (gameState == SETTINGS) {
             renderSettings(renderer, font, &config, levelsMenuTextures.backText, &backRect);
         } else if (gameState == PLAYING) { 
@@ -379,12 +376,6 @@ int main(int argc, char *argv[]) {
             velocityY += 1;
             }
             playerY += velocityY;
-
-            // le probleme de velocity qui traverse la plateforme est la 
-            //en bas à gauche checkCollision(playerX, playerY + TILE_SIZE - 1, level, 7)
-            //en bas à droite checkCollision(playerX + TILE_SIZE - 1, playerY + TILE_SIZE - 1, level, 7)
-            //en haut à gauche checkCollision(playerX, playerY, level, 7)
-            //en haut à droite checkCollision(playerX + TILE_SIZE - 1, playerY, level, 7)
 
             if (1) { // check mur gauche
                 while (

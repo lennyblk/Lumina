@@ -38,11 +38,11 @@ void renderCreateLevel(SDL_Renderer* renderer, int level[LEVEL_HEIGHT][LEVEL_WID
     saveRect->y = 10; // En haut de la fenêtre
     SDL_Color highlightColor = {255, 255, 0, 255}; // Surbrillance jaune
     SDL_Color blackColor = {0, 0, 0, 255};
-    renderTextWithBackground(renderer, font, "Sauvegarder", blackColor, highlightColor, saveRect->x, saveRect->y);
+    renderTextWithBackground(renderer, font, "Save", blackColor, highlightColor, saveRect->x, saveRect->y);
     SDL_RenderCopy(renderer, saveText, NULL, saveRect);
 
     SDL_QueryTexture(backToMenuText, NULL, NULL, &backToMenuRect->w, &backToMenuRect->h);
-    renderTextWithBackground(renderer, font, "", blackColor, highlightColor, backToMenuRect->x, backToMenuRect->y);
+    renderTextWithBackground(renderer, font, "menu", blackColor, highlightColor, backToMenuRect->x, backToMenuRect->y);
     SDL_RenderCopy(renderer, backToMenuText, NULL, backToMenuRect);
 
     renderTextWithBackground(renderer, font, "- 6 checkpoint", blackColor, highlightColor, 10, 10);
