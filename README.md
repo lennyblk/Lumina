@@ -7,11 +7,13 @@ Creation level
 ![image](https://github.com/user-attachments/assets/aece1420-cf92-43f9-b373-6bd37ad8a78c)
 
 
+# Lumina
+
 Lumina is a game developed in C using the SDL2 library.
 
 ## Prerequisites
 
-If you want to build the game from source, make sure you have:
+Before running the game, make sure you have the following installed:
 - [SDL2](https://www.libsdl.org/)
 - [SDL2_image](https://www.libsdl.org/projects/SDL_image/)
 - [SDL2_ttf](https://www.libsdl.org/projects/SDL_ttf/)
@@ -20,22 +22,13 @@ If you want to build the game from source, make sure you have:
 
 ## Installation
 
-You can install and play Lumina in two ways:
-
-### 1. Using the Installer (Recommended)
-
-Download the installer for **Windows** or **Mac** from the [Releases](https://github.com/lennyblk/Lumina/releases) page and follow the installation instructions.  
-This is the easiest way to get started—no manual setup required!
-
-### 2. Building from Source
-
 1. Clone this repository:
    ```bash
    git clone https://github.com/lennyblk/Lumina.git
    cd Lumina
    ```
 
-2. Make sure the following files and folders are present:
+2. Check that the following files and folders are present:
    - `main.c`
    - `src/` folder
    - `include/` folder
@@ -45,23 +38,26 @@ This is the easiest way to get started—no manual setup required!
 
 3. Install SDL2 dependencies according to your operating system.
 
-#### Compilation
+## Compilation
 
-**On Linux/MacOS:**
+### On Linux/MacOS
+
 ```bash
 gcc -o lumina main.c src/*.c -Iinclude -lSDL2 -lSDL2_image -lSDL2_ttf
 ```
+
 Or, if a Makefile is provided:
 ```bash
 make
 ```
 
-**On Windows:**
+### On Windows
+
 Make sure that `SDL2.dll`, `SDL2_image.dll`, and `SDL2_ttf.dll` are in the same folder as the executable. Compile using MinGW or a compatible IDE.
 
 ## Running the Game
 
-After installation or compilation, run the game with:
+After compiling, run the game with:
 
 ```bash
 ./lumina
@@ -87,3 +83,4 @@ lumina.exe
 
 ---
 
+Feel free to open an issue if you have any questions or encounter a bug!
