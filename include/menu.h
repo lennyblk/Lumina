@@ -1,6 +1,10 @@
 #ifndef MENU_H
 #define MENU_H
 
+#include <SDL.h>
+#include <SDL_ttf.h>
+#include "config.h"
+
 #define MAX_LEVELS 100
 
 typedef struct {
@@ -22,5 +26,6 @@ typedef struct {
 void renderMenu(SDL_Renderer* renderer, MenuTextures* menuTextures, SDL_Rect* levelsRect, SDL_Rect* settingsRect, SDL_Rect* exitRect);
 
 void renderLevelsMenu(SDL_Renderer* renderer, LevelsMenuTextures* levelsMenuTextures, SDL_Rect* levelRects, SDL_Rect* createLevelRect, SDL_Rect* backRect);
+void renderSettings(SDL_Renderer* renderer, TTF_Font* font, GameConfig* config, SDL_Texture* backText, SDL_Rect* backRect);
 
 #endif // MENU_H

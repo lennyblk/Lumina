@@ -13,47 +13,35 @@ Lumina is a game developed in C using the SDL2 library.
 
 ## Prerequisites
 
-Before running the game, make sure you have the following installed:
 - [SDL2](https://www.libsdl.org/)
 - [SDL2_image](https://www.libsdl.org/projects/SDL_image/)
 - [SDL2_ttf](https://www.libsdl.org/projects/SDL_ttf/)
-- A C compiler (e.g., gcc)
-- (Optional) `make` if you want to use a Makefile
+- GCC
+- Make
+
+On macOS (Homebrew):
+```bash
+brew install sdl2 sdl2_image sdl2_ttf
+```
 
 ## Installation
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/lennyblk/Lumina.git
-   cd Lumina
-   ```
-
-2. Check that the following files and folders are present:
-   - `main.c`
-   - `src/` folder
-   - `include/` folder
-   - `levels/` folder
-   - `player_assets/` folder
-   - SDL2 `.dll` files (on Windows)
-
-3. Install SDL2 dependencies according to your operating system.
+```bash
+git clone https://github.com/lennyblk/Lumina.git
+cd Lumina
+```
 
 ## Compilation
 
-### On Linux/MacOS
+### macOS / Linux
 
-```bash
-gcc -o lumina main.c src/*.c -Iinclude -lSDL2 -lSDL2_image -lSDL2_ttf
-```
-
-Or, if a Makefile is provided:
 ```bash
 make
 ```
 
-### On Windows
+### Windows
 
-Make sure that `SDL2.dll`, `SDL2_image.dll`, and `SDL2_ttf.dll` are in the same folder as the executable. Compile using MinGW or a compatible IDE.
+Make sure `SDL2.dll`, `SDL2_image.dll`, and `SDL2_ttf.dll` are in the same folder as the executable. Compile using MinGW or a compatible IDE.
 
 ## Running the Game
 

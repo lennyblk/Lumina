@@ -1,5 +1,6 @@
 #include "../include/text.h"
 #include "../include/level.h"
+#include "../include/collision.h"
 #include "../include/menu.h"
 #include "../include/config.h"
 #include "../include/createlevel.h"
@@ -50,7 +51,6 @@ void renderCreateLevel(SDL_Renderer* renderer, int level[LEVEL_HEIGHT][LEVEL_WID
     renderTextWithBackground(renderer, font, "- 8 pics", blackColor, highlightColor, 10, 70);
     renderTextWithBackground(renderer, font, "- 9 fin", blackColor, highlightColor, 10, 100);
 
-    SDL_RenderPresent(renderer);
 }
 
 void saveLevelWithFilename(const char *filePath, int level[LEVEL_HEIGHT][LEVEL_WIDTH]) {

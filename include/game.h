@@ -1,4 +1,8 @@
+#ifndef GAME_H
+#define GAME_H
+
 #include <SDL.h>
+#include "config.h"
 
 typedef struct {
     SDL_Texture* background1;
@@ -20,3 +24,5 @@ typedef struct {
 } PlayerTextures;
 
 GameConfig loadConfig(const char *filePath);
+
+#endif // GAME_H

@@ -2,6 +2,7 @@
 #include "../include/level.h"
 #include "../include/menu.h"
 #include "../include/config.h"
+#include "../include/game.h"
 #include "../cJSON.h"
 #include <stdio.h>
 #include <SDL_ttf.h>
@@ -32,8 +33,6 @@ void renderMenu(SDL_Renderer* renderer, MenuTextures* menuTextures, SDL_Rect* le
     SDL_QueryTexture(menuTextures->exitText, NULL, NULL, &textWidth, &textHeight);
     *exitRect = (SDL_Rect){350, 400, textWidth, textHeight};
     SDL_RenderCopy(renderer, menuTextures->exitText, NULL, exitRect);
-
-    SDL_RenderPresent(renderer);
 }
 
 void renderLevelsMenu(SDL_Renderer* renderer, LevelsMenuTextures* levelsMenuTextures, SDL_Rect* levelRects, SDL_Rect* createLevelRect, SDL_Rect* backRect) {
@@ -55,8 +54,6 @@ void renderLevelsMenu(SDL_Renderer* renderer, LevelsMenuTextures* levelsMenuText
     SDL_QueryTexture(levelsMenuTextures->backText, NULL, NULL, &textWidth, &textHeight);
     *backRect = (SDL_Rect){350, 200 + (levelsMenuTextures->levelCount + 1) * 50, textWidth, textHeight};
     SDL_RenderCopy(renderer, levelsMenuTextures->backText, NULL, backRect);
-
-    SDL_RenderPresent(renderer);
 }
 
 void renderSettings(SDL_Renderer* renderer, TTF_Font* font, GameConfig* config, SDL_Texture* backText, SDL_Rect* backRect) {
@@ -85,6 +82,4 @@ void renderSettings(SDL_Renderer* renderer, TTF_Font* font, GameConfig* config, 
     SDL_QueryTexture(backText, NULL, NULL, &textWidth, &textHeight);
     *backRect = (SDL_Rect){350, 400, textWidth, textHeight};
     SDL_RenderCopy(renderer, backText, NULL, backRect);
-
-    SDL_RenderPresent(renderer);
 }

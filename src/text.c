@@ -3,6 +3,7 @@
 #include "../cJSON.h"
 #include <stdio.h>
 #include <SDL_ttf.h>
+#include <SDL_image.h>
 
 SDL_Texture *loadTexture(const char *filePath, SDL_Renderer *renderer) {
     SDL_Surface *surface = IMG_Load(filePath);
